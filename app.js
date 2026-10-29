@@ -2,7 +2,7 @@
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import{getAuth,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,GoogleAuthProvider,signInWithPopup,sendPasswordResetEmail,signOut,updateProfile}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import{getFirestore,doc,getDoc,setDoc,updateDoc,addDoc,collection,query,where,getDocs,limit,serverTimestamp,runTransaction,deleteDoc}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-const FIREBASE={apiKey:"COLE_AQUI",authDomain:"SEU_PROJETO.firebaseapp.com",projectId:"SEU_PROJETO",appId:"COLE_AQUI"};
+const FIREBASE={apiKey:"AIzaSyCDRbUsrfrfKJ3erCUXWTRTyLG2GE6Xdpg",authDomain:"vellum-gns.firebaseapp.com",projectId:"vellum-gns",storageBucket:"vellum-gns.firebasestorage.app",messagingSenderId:"523498921953",appId:"1:523498921953:web:14ba0ba049cf89da68fca0"};
 const CONFIG_OK=FIREBASE.apiKey!=="COLE_AQUI";
 const app=initializeApp(FIREBASE),auth=getAuth(app),db=getFirestore(app);
 
