@@ -47,6 +47,15 @@ service cloud.firestore {
         allow update: if signed() && (isStaff(t) || (resource.data.clienteUid == request.auth.uid && request.resource.data.status == 'cancelado'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])));
       }
+      match /avaliacoes/{i} {
+        allow read: if resource.data.publica == true || (signed() && (resource.data.cli == request.auth.uid || isStaff(t)));
+        allow create: if signed() && request.resource.data.cli == request.auth.uid && request.resource.data.publica == false
+          && request.resource.data.nota >= 1 && request.resource.data.nota <= 5
+          && request.resource.data.keys().hasOnly(['cli','nome','profId','profNome','nota','txt','publica','em'])
+          && get(/databases/$(db)/documents/tenants/$(t)/agendamentos/$(i)).data.clienteUid == request.auth.uid
+          && get(/databases/$(db)/documents/tenants/$(t)/agendamentos/$(i)).data.status == 'concluido';
+        allow update: if isOwner(t) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['publica']);
+      }
       match /fidelidade/{u} { allow read: if signed() && (request.auth.uid == u || isStaff(t)); allow write: if isStaff(t); }
     }
   }
