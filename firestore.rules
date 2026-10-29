@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signed(){ return request.auth != null; }
+    function isMaster(){ return signed() && exists(/databases/$(db)/documents/masters/$(request.auth.uid)); }
+    function acc(){ return get(/databases/$(db)/documents/acessos/$(request.auth.uid)).data; }
+    function isStaff(t){ return signed() && exists(/databases/$(db)/documents/acessos/$(request.auth.uid)) && acc().tenantId == t; }
+    function isOwner(t){ return isStaff(t) && acc().papel == 'proprietario'; }
+
+    match /masters/{u}  { allow read: if signed() && request.auth.uid == u; allow write: if false; }  // criar só pelo Console
+    match /acessos/{u}  { allow read: if signed() && (request.auth.uid == u || isMaster()); allow write: if isMaster(); }
+    match /auditoria/{i}{ allow read, create: if isMaster(); allow update, delete: if false; }
+
+    match /users/{u} {
+      allow read: if signed() && (request.auth.uid == u || isMaster());
+      allow create, update: if signed() && request.auth.uid == u
+        && request.resource.data.keys().hasOnly(['nome','email','telefone','nascimento','cpf','cep','endereco','estilo','foto','criadoEm','lgpdEm'])
+        && request.resource.data.email == request.auth.token.email;
+      allow delete: if signed() && request.auth.uid == u;
+    }
+
+    match /tenants/{t} {
+      allow read: if true;                      // página pública: nome, descrição, tema
+      allow create, delete: if isMaster();
+      allow update: if isMaster() || (isOwner(t) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome','descricao','tema']));
+      // Fases 2+: tudo abaixo de tenants/{t}/... exige isStaff(t) ou ser o dono do próprio registro
+      match /{rest=**} { allow read, write: if false; }
+    }
+    match /{any=**} { allow read, write: if false; }
+  }
+}
