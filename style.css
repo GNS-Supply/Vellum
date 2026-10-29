@@ -42,3 +42,8 @@ input[type=color]{height:2.8rem;padding:.2rem}input[type=checkbox]{width:auto;ma
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 /* ==== 6. RESPONSIVO ==== */
 @media(max-width:600px){.topo{padding:var(--s2)}.wrap{padding:var(--s2)}.hero{min-height:40vh}}
+/* ==== 7. SELEÇÃO (profissionais e horários) ==== */
+.pick-grid{display:grid;gap:var(--s1);grid-template-columns:repeat(auto-fill,minmax(110px,1fr));margin-bottom:var(--s2)}
+.pick{display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:.7rem;font:inherit;color:var(--ink);background:var(--surf);border:1px solid var(--line);border-radius:calc(var(--r)*.7);cursor:pointer;transition:border-color .2s,background .2s,transform .15s var(--ease)}
+.pick:hover{border-color:var(--brand)}.pick:active{transform:scale(.97)}.pick[aria-pressed=true]{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
+.pick img{width:56px;height:56px;border-radius:50%;object-fit:cover}
