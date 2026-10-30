@@ -40,8 +40,8 @@ async function auditar(ev,dados){await addDoc(collection(db,"auditoria"),{ev,dad
 /* ==== 5. CABEÇALHO COMPARTILHADO ==== */
 function topo(t,s){const n=[];
 if(s?.papel==="cliente")n.push(["agendar.html","Agendar"],["cliente.html","Meu perfil"]);
-if(s?.papel==="proprietario")n.push(["agendamentos.html","Agenda"],["unidades.html","Unidades"],["profissionais.html","Profissionais"],["servicos.html","Serviços"],["avaliacoes.html","Avaliações"],["indicadores.html","Indicadores"],["personalizacao.html","Aparência"]);
-if(s?.papel==="master")n.push(["master.html","Plataforma"]);
+if(s?.papel==="proprietario")n.push(["agendamentos.html","Agenda"],["unidades.html","Unidades"],["profissionais.html","Profissionais"],["servicos.html","Serviços"],["avaliacoes.html","Avaliações"],["indicadores.html","Indicadores"]);
+if(s?.papel==="master")n.push(["master.html","Plataforma"],["personalizacao.html","Aparência"]);
 $("#topo").innerHTML=`<a class="marca" data-l="index.html">${t?.tema?.logo?`<img src="${t.tema.logo}" alt="" width="28" height="28" style="border-radius:6px;vertical-align:middle;margin-right:.5rem">`:""}${esc(t?.nome||"Agenda")}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}">${l}</a>`).join("")}${s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
 $("#sair")?.addEventListener("click",async()=>{await signOut(auth);location.replace(href("index.html"))})}
 
@@ -70,13 +70,16 @@ const d=(await getDoc(ref)).data()||{};CAMPOS.forEach(k=>f[k].value=d[k]||"");f.
 f.onsubmit=e=>{e.preventDefault();if(f.cpf.value&&!cpfValido(f.cpf.value))return toast("CPF inválido. Confira os números ou deixe em branco.","err");
 acao($("button",f),async()=>{const v={};CAMPOS.forEach(k=>v[k]=f[k].value.trim());await setDoc(ref,v,{merge:true});toast("Perfil salvo.")})}};
 
-P.personalizacao=async(t,s)=>{if(!exigir(s,["proprietario"]))return;if(!t)return toast("Estabelecimento não encontrado.","err");
-const f=$("#f"),ref=doc(db,"tenants",t.id);const preencher=x=>{f.nome.value=x.nome||"";f.descricao.value=x.descricao||"";f.cor.value=x.tema?.cor||"#23395b";f.tema.value=x.tema?.tema||"claro";f.estilo.value=x.tema?.estilo||"suave"};
-let logo=t.tema?.logo||"";f.logo.onchange=async()=>{if(f.logo.files[0]){logo=await imgData(f.logo.files[0],256);toast("Logo carregada. Salve para publicar.")}};const ler=()=>({cor:f.cor.value,tema:f.tema.value,estilo:f.estilo.value,logo});preencher(t);f.hidden=false;$("#carga").remove();
-f.oninput=()=>aplicarTema(ler());
-$("#descartar").onclick=()=>{preencher(t);aplicarTema(t.tema)};
+P.personalizacao=async(t,s)=>{if(!exigir(s,["master"]))return;const f=$("#f"),sel=$("#lojas"),q=await getDocs(collection(db,"tenants"));
+if(q.empty){$("#carga").remove();toast("Crie um estabelecimento primeiro, na tela Plataforma.","err");return}
+const L=new Map(q.docs.map(d=>[d.id,{id:d.id,...d.data()}]));sel.innerHTML=[...L.values()].map(x=>`<option value="${esc(x.id)}">${esc(x.nome)}</option>`).join("");let cur,logo="";
+const ler=()=>({cor:f.cor.value,tema:f.tema.value,estilo:f.estilo.value,logo});
+const escolher=()=>{cur=L.get(sel.value);logo=cur.tema?.logo||"";f.nome.value=cur.nome||"";f.descricao.value=cur.descricao||"";f.cor.value=cur.tema?.cor||"#23395b";f.tema.value=cur.tema?.tema||"claro";f.estilo.value=cur.tema?.estilo||"suave";f.logo.value="";aplicarTema(cur.tema)};
+$("#carga").remove();f.hidden=false;escolher();sel.onchange=escolher;
+f.logo.onchange=async()=>{if(f.logo.files[0]){logo=await imgData(f.logo.files[0],256);toast("Logo carregada. Salve para publicar.")}};
+f.oninput=e=>{if(e.target!==f.logo)aplicarTema(ler())};$("#descartar").onclick=escolher;
 f.onsubmit=e=>{e.preventDefault();if(!f.nome.value.trim())return toast("Informe o nome do estabelecimento.","err");
-acao($("button[type=submit]",f),async()=>{const novo={nome:f.nome.value.trim(),descricao:f.descricao.value.trim(),tema:ler()};await updateDoc(ref,novo);Object.assign(t,novo);pwa(t);toast("Personalização salva.")})}};
+acao($("button[type=submit]",f),async()=>{const novo={nome:f.nome.value.trim(),descricao:f.descricao.value.trim(),tema:ler()};await updateDoc(doc(db,"tenants",cur.id),novo);await auditar("tenant.aparencia",{id:cur.id});Object.assign(cur,novo);pwa(cur);toast("Aparência salva.")})}};
 
 P.master=async(t,s)=>{if(!exigir(s,["master"]))return;const L=$("#lista"),sel=$("#sel");
 async function listar(){const q=await getDocs(collection(db,"tenants"));$("#carga")?.remove();
@@ -164,45 +167,66 @@ cr.forEach((r,i)=>tx.set(r,{n:Math.max(0,(K[i].data()?.n||1)-1),u:x.unidadeId,d:
 P.agendar=async(t,s)=>{if(!exigir(s,["cliente"]))return;const A=$("#app");
 if(!t||t.suspenso){A.innerHTML=`<p class="lead">Escolha um estabelecimento na <a data-l="index.html">página inicial</a>.</p>`;return}
 const C=n=>collection(db,"tenants",t.id,n),ler=async n=>(await getDocs(C(n))).docs.map(d=>({id:d.id,...d.data()}));
-const[U,PR,SV]=await Promise.all([ler("unidades"),ler("profissionais"),ler("servicos")]),st={u:U[0]?.id,p:"",s:SV[0]?.id,d:"",sl:null};
-let ML=[];const meus=async()=>{const q=await getDocs(query(C("agendamentos"),where("clienteUid","==",s.u.uid))),m=t.fidelidade?.meta||10,f=(await getDoc(doc(C("fidelidade"),s.u.uid))).data()||{};
-$("#fid").innerHTML=`<div class="card"><strong>Fidelidade:</strong> ${f.n||0} de ${m} atendimentos${f.brindes?` · <strong>${f.brindes} brinde(s) disponível(is)</strong>`:""}</div>`;
+const[U,PR,SV]=await Promise.all([ler("unidades"),ler("profissionais"),ler("servicos")]);let ML=[];
+const meus=async()=>{const q=await getDocs(query(C("agendamentos"),where("clienteUid","==",s.u.uid)));
+if(t.fidelidade?.ativo){const m=t.fidelidade.meta||10,f=(await getDoc(doc(C("fidelidade"),s.u.uid))).data()||{},n=Math.min(f.n||0,m);
+$("#fid").innerHTML=`<div class="card fid"><strong>Programa de fidelidade</strong><div class="barra" role="progressbar" aria-valuenow="${n}" aria-valuemax="${m}"><i style="width:${n/m*100}%"></i></div><span class="mute">${n} de ${m} atendimentos${f.brindes?` · <strong>${f.brindes} brinde(s) disponível(is)</strong>`:""}</span></div>`}else $("#fid").innerHTML="";
 const l=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.inicio.localeCompare(a.inicio));ML=l;const av=new Set((await getDocs(query(C("avaliacoes"),where("cli","==",s.u.uid)))).docs.map(d=>d.id));
 $("#meus").innerHTML=l.length?l.map(a=>`<li><span><strong>${esc(a.servicoNome)}</strong> com ${esc(a.profNome)}<br><span class="mute">${esc(fmt(a.inicio))} · ${esc(a.unidadeNome)}</span></span><span><span class="tag ${a.status==="cancelado"?"off":""}">${a.status}</span>${a.status==="agendado"&&new Date(a.inicio)>new Date()?` <button class="btn ghost" data-c="${a.id}">Cancelar</button>`:""}${a.status==="concluido"&&!av.has(a.id)?` <button class="btn ghost" data-v="${a.id}">Avaliar</button>`:""}</span></li>`).join(""):`<li class="mute">Você ainda não tem agendamentos.</li>`};
-$("#meus").onclick=e=>{const v=e.target.closest("[data-v]");if(v)return acao(v,async()=>{const a=ML.find(x=>x.id===v.dataset.v),nota=Math.round(+prompt("Nota de 1 a 5 para o atendimento:"));if(!(nota>=1&&nota<=5))return toast("Informe uma nota de 1 a 5.","err");const txt=(prompt("Comentário (opcional):")||"").trim().slice(0,500);await setDoc(doc(C("avaliacoes"),a.id),{cli:s.u.uid,nome:(s.u.displayName||"Cliente").split(" ")[0],profId:a.profId,profNome:a.profNome,nota,txt,publica:false,em:serverTimestamp()});toast("Obrigado pela avaliação!");await meus()});const b=e.target.closest("[data-c]");if(b)acao(b,async()=>{if(!confirm("Cancelar este agendamento?"))return;await cancelar(t.id,b.dataset.c);toast("Agendamento cancelado.");await meus()})};
+$("#meus").onclick=e=>{const v=e.target.closest("[data-v]");if(v)return acao(v,async()=>{const a=ML.find(x=>x.id===v.dataset.v),nota=Math.round(+prompt("Nota de 1 a 5 para o atendimento:"));if(!(nota>=1&&nota<=5))return toast("Informe uma nota de 1 a 5.","err");const txt=(prompt("Comentário (opcional):")||"").trim().slice(0,500);await setDoc(doc(C("avaliacoes"),a.id),{cli:s.u.uid,nome:(s.u.displayName||"Cliente").split(" ")[0],profId:a.profId,profNome:a.profNome,nota,txt,publica:false,em:serverTimestamp()});toast("Obrigado pela avaliação!");await meus()});
+const b=e.target.closest("[data-c]");if(b)acao(b,async()=>{if(!confirm("Cancelar este agendamento?"))return;await cancelar(t.id,b.dataset.c);toast("Agendamento cancelado.");await meus()})};
 if(!U.length||!SV.length){A.innerHTML=`<p class="lead">Este estabelecimento ainda não liberou horários.</p>`;return meus()}
-A.innerHTML=`<div class="card"><div class="cols"><label>Unidade<select id="u">${U.map(u=>`<option value="${u.id}">${esc(u.nome)}</option>`).join("")}</select></label><label>Serviço<select id="sv">${SV.map(v=>`<option value="${v.id}">${esc(v.nome)} · ${brl(v.preco)} · ${v.duracao} min</option>`).join("")}</select></label><label>Data<input id="d" type="date" min="${hoje()}"></label></div><h2>Profissional</h2><div id="pr" class="pick-grid"></div><h2>Horários</h2><div id="hs" class="pick-grid"></div><div id="res"></div></div>`;
-const profs=()=>PR.filter(p=>p.unidadeId===st.u&&p.ativo!==false);
-function desenharPr(){$("#pr").innerHTML=[{id:"",nome:"Sem preferência"},...profs()].map(p=>`<button type="button" class="pick" aria-pressed="${st.p===p.id}" data-p="${p.id}">${p.foto?`<img src="${p.foto}" alt="" width="56" height="56">`:""}${esc(p.nome)}</button>`).join("")}
-async function slots(){st.sl=null;$("#res").innerHTML="";const H=$("#hs");if(!st.d){H.innerHTML=`<p class="mute">Escolha uma data.</p>`;return}H.innerHTML=`<div class="skel"></div>`;
-const un=U.find(x=>x.id===st.u),sv=SV.find(x=>x.id===st.s),n=Math.ceil(sv.duracao/30),q=[where("u","==",un.id),where("d","==",st.d)];
-const[lk,cp]=await Promise.all([getDocs(query(C("locks"),...q)),getDocs(query(C("cap"),...q))]),Lk=new Set(lk.docs.map(d=>d.id)),K={};cp.docs.forEach(d=>K[d.id]=d.data().n);
-const ps=profs().filter(p=>!st.p||p.id===st.p),out=[];
-for(let m=mins(un.abre);m+sv.duracao<=mins(un.fecha);m+=30){if(new Date(`${st.d}T${hm(m)}`)<=new Date())continue;const us=[...Array(n)].map((_,i)=>hm(m+30*i));
+/* assistente em etapas: unidade, profissional, serviço, data, horário */
+const unica=U.length===1,st={step:unica?1:0,u:unica?U[0].id:"",p:null,s:"",d:"",sl:null,lista:[]},NOMES=["Unidade","Profissional","Serviço","Data","Horário"];
+const profs=()=>PR.filter(p=>p.unidadeId===st.u&&p.ativo!==false),sv=()=>SV.find(x=>x.id===st.s);
+const dias=[...Array(14)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)});
+const cl=(sel,any)=>sel?"sel":any?"dim":"";
+const opt=(k,id,h,sel,any)=>`<button type="button" class="opt ${cl(sel,any)}" data-k="${k}" data-id="${esc(id)}" aria-pressed="${sel}">${h}</button>`;
+const pc=(id,nome,foto,sel)=>`<button type="button" class="pcard ${cl(sel,st.p!==null)}" data-k="p" data-id="${esc(id)}" aria-pressed="${sel}"><span class="arch">${foto?`<img src="${foto}" alt="">`:`<i>${esc(id===""?"✦":(nome[0]||"?").toUpperCase())}</i>`}</span><strong>${esc(nome)}</strong></button>`;
+const ir=n=>{st.step=n;draw()};
+function draw(){const e=st.step,bar=`<ol class="steps">${NOMES.map((n,i)=>`<li class="${i<e?"feito":i===e?"atual":""}"><b>${i<e?"✓":i+1}</b><span>${n}</span></li>`).join("")}</ol>`;let p="";
+if(e===0)p=`<h2>Onde você quer ser atendido?</h2><div class="opts">${U.map(u=>opt("u",u.id,`<strong>${esc(u.nome)}</strong><small>${esc(u.endereco||"")}</small>`,st.u===u.id,st.u)).join("")}</div>`;
+if(e===1)p=`<h2>Com quem você prefere?</h2><div class="profs">${pc("","Sem preferência","",st.p==="")}${profs().map(x=>pc(x.id,x.nome,x.foto,st.p===x.id)).join("")}</div>`;
+if(e===2)p=`<h2>Qual serviço você quer?</h2><div class="opts">${SV.filter(v=>v.ativo!==false).map(v=>opt("s",v.id,`<strong>${esc(v.nome)}</strong><small>${brl(v.preco)}</small>`,st.s===v.id,st.s)).join("")}</div>`;
+if(e===3)p=`<h2>Qual dia fica melhor?</h2><div class="days">${dias.map(d=>{const x=new Date(d+"T12:00");return`<button type="button" class="day ${cl(st.d===d,0)}" data-k="d" data-id="${d}" aria-pressed="${st.d===d}"><small>${x.toLocaleDateString("pt-BR",{weekday:"short"})}</small><b>${d.slice(8)}</b><small>${x.toLocaleDateString("pt-BR",{month:"short"})}</small></button>`}).join("")}</div>`;
+if(e===4)p=`<h2>Escolha o horário</h2><div class="slots" id="hs"></div><div id="res"></div>`;
+A.innerHTML=bar+`<div class="panel">${p}</div>`+(e>(unica?1:0)?`<button class="btn ghost voltar" data-back>Voltar</button>`:"");if(e===4)slots()}
+async function slots(){const H=$("#hs"),un=U.find(x=>x.id===st.u),v=sv(),n=Math.ceil(v.duracao/30);H.innerHTML=`<div class="skel"></div>`;
+const q=[where("u","==",un.id),where("d","==",st.d)],[lk,cp]=await Promise.all([getDocs(query(C("locks"),...q)),getDocs(query(C("cap"),...q))]),Lk=new Set(lk.docs.map(d=>d.id)),K={};cp.docs.forEach(d=>K[d.id]=d.data().n);
+const ps=profs().filter(p=>st.p===""||p.id===st.p),out=[];
+for(let m=mins(un.abre);m+v.duracao<=mins(un.fecha);m+=30){if(new Date(`${st.d}T${hm(m)}`)<=new Date())continue;const us=[...Array(n)].map((_,i)=>hm(m+30*i));
 if(us.some(h=>(K[`${un.id}_${st.d}_${h}`]||0)>=un.capacidade))continue;const livres=ps.filter(p=>us.every(h=>!Lk.has(`${p.id}_${st.d}_${h}`)));if(livres.length)out.push({h:hm(m),us,livres})}
-st.lista=out;H.innerHTML=out.length?out.map((o,i)=>`<button type="button" class="pick" data-h="${i}">${o.h}</button>`).join(""):`<p class="mute">Sem horários livres neste dia. Tente outra data ou outro profissional.</p>`}
-async function reservar(){const un=U.find(x=>x.id===st.u),sv=SV.find(x=>x.id===st.s),sl=st.sl;
+st.lista=out;H.innerHTML=out.length?out.map((o,i)=>`<button type="button" class="chip" data-k="h" data-id="${i}">${o.h}</button>`).join(""):`<p class="mute">Sem horários livres neste dia. Volte e escolha outra data ou outro profissional.</p>`}
+async function reservar(){const un=U.find(x=>x.id===st.u),v=sv(),sl=st.sl;
 for(const p of sl.livres){try{await runTransaction(db,async tx=>{const lr=sl.us.map(h=>doc(C("locks"),`${p.id}_${st.d}_${h}`)),cr=sl.us.map(h=>doc(C("cap"),`${un.id}_${st.d}_${h}`));
 const L=await Promise.all(lr.map(r=>tx.get(r))),K=await Promise.all(cr.map(r=>tx.get(r)));
 if(L.some(x=>x.exists())||K.some(x=>(x.data()?.n||0)>=un.capacidade))throw Object.assign(new Error("conflito"),{conflito:1});
 lr.forEach(r=>tx.set(r,{cli:s.u.uid,u:un.id,d:st.d}));cr.forEach((r,i)=>tx.set(r,{n:(K[i].data()?.n||0)+1,u:un.id,d:st.d}));
-tx.set(doc(C("agendamentos")),{clienteUid:s.u.uid,clienteNome:s.u.displayName||s.u.email,unidadeId:un.id,unidadeNome:un.nome,profId:p.id,profNome:p.nome,servicoId:sv.id,servicoNome:sv.nome,preco:sv.preco,dur:sv.duracao,inicio:`${st.d}T${sl.h}`,status:"agendado",locks:lr.map(r=>r.id),caps:cr.map(r=>r.id),criadoEm:serverTimestamp()})});return p}
+tx.set(doc(C("agendamentos")),{clienteUid:s.u.uid,clienteNome:s.u.displayName||s.u.email,unidadeId:un.id,unidadeNome:un.nome,profId:p.id,profNome:p.nome,servicoId:v.id,servicoNome:v.nome,preco:v.preco,dur:v.duracao,inicio:`${st.d}T${sl.h}`,status:"agendado",locks:lr.map(r=>r.id),caps:cr.map(r=>r.id),criadoEm:serverTimestamp()})});return p}
 catch(e){if(!e.conflito)throw e}}throw{message_pt:"Esse horário acabou de ser ocupado. Escolha outro."}}
-A.onchange=e=>{if(e.target.id==="u"){st.u=e.target.value;st.p="";desenharPr()}if(e.target.id==="sv")st.s=e.target.value;if(e.target.id==="d")st.d=e.target.value;slots()};
 A.onclick=e=>{const b=e.target.closest("button");if(!b)return;
-if(b.dataset.p!==undefined){st.p=b.dataset.p;desenharPr();slots()}
-if(b.dataset.h!==undefined){st.sl=st.lista[b.dataset.h];const sv=SV.find(x=>x.id===st.s);document.querySelectorAll("[data-h]").forEach(x=>x.setAttribute("aria-pressed",x===b));
-$("#res").innerHTML=`<p><strong>${esc(sv.nome)}</strong> · ${esc(fmt(st.d+"T"+st.sl.h))} · ${brl(sv.preco)}</p><button class="btn" id="ok">Confirmar agendamento</button>`}
-if(b.id==="ok")acao(b,async()=>{const p=await reservar();toast(`Agendado com ${p.nome}!`);await slots();await meus()})};
-desenharPr();await slots();await meus()};
+if(b.hasAttribute("data-back"))return ir(st.step-1);
+if(b.hasAttribute("data-novo")){Object.assign(st,{step:unica?1:0,p:null,s:"",d:"",sl:null});return draw()}
+const{k,id}=b.dataset;
+if(k==="u"){st.u=id;st.p=null;draw();setTimeout(()=>ir(1),300)}
+if(k==="p"){st.p=id;draw();setTimeout(()=>ir(2),300)}
+if(k==="s"){st.s=id;draw();setTimeout(()=>ir(3),300)}
+if(k==="d"){st.d=id;draw();setTimeout(()=>ir(4),300)}
+if(k==="h"){st.sl=st.lista[id];document.querySelectorAll("#hs .chip").forEach(x=>x.classList.toggle("sel",x===b));const v=sv();
+$("#res").innerHTML=`<div class="card resumo"><p style="margin:0 0 .8rem"><strong>${esc(v.nome)}</strong> · ${esc(fmt(st.d+"T"+st.sl.h))}<br><span class="mute">${st.p===""?"Profissional disponível no horário":"Com "+esc(PR.find(x=>x.id===st.p)?.nome||"")} · ${brl(v.preco)}</span></p><button class="btn" id="ok">Confirmar agendamento</button></div>`;$("#res").scrollIntoView({behavior:"smooth",block:"nearest"})}
+if(b.id==="ok")acao(b,async()=>{const p=await reservar();A.innerHTML=`<div class="sucesso"><div class="ok">✓</div><h2>Agendado!</h2><p class="lead" style="margin:0 auto 1rem">${esc(p.nome)} · ${esc(fmt(st.d+"T"+st.sl.h))}</p><button class="btn ghost" data-novo>Fazer outro agendamento</button></div>`;await meus()})};
+draw();await meus()};
 
 /* ==== 6e. AGENDA DO PROPRIETÁRIO + FIDELIDADE ==== */
-P.agendamentos=async(t,s)=>{if(!exigir(s,["proprietario"]))return;const D=$("#d"),L=$("#lista"),meta=t.fidelidade?.meta||10;D.value=hoje();
+P.agendamentos=async(t,s)=>{if(!exigir(s,["proprietario"]))return;
+const ff=$("#fid");ff.ativo.checked=!!t.fidelidade?.ativo;ff.meta.value=t.fidelidade?.meta||10;
+ff.onsubmit=e=>{e.preventDefault();acao($("button",ff),async()=>{const fidelidade={ativo:ff.ativo.checked,meta:Math.max(2,Math.round(+ff.meta.value||10))};await updateDoc(doc(db,"tenants",t.id),{fidelidade});t.fidelidade=fidelidade;toast("Fidelidade atualizada.")})};
+const D=$("#d"),L=$("#lista"),meta=t.fidelidade?.meta||10;D.value=hoje();
 async function lista(){L.innerHTML=`<li><div class="skel"></div></li>`;const q=await getDocs(query(collection(db,"tenants",t.id,"agendamentos"),where("inicio",">=",D.value),where("inicio","<=",D.value+"T23:59")));
 const l=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.inicio.localeCompare(b.inicio));
 L.innerHTML=l.length?l.map(a=>`<li><span><strong>${a.inicio.slice(11)}</strong> · ${esc(a.clienteNome)}<br><span class="mute">${esc(a.servicoNome)} · ${esc(a.profNome)} · ${esc(a.unidadeNome)} · ${brl(a.preco)}</span></span><span><span class="tag ${["cancelado","ausente"].includes(a.status)?"off":""}">${a.status}</span>${a.status==="agendado"?` <button class="btn" data-a="concluido" data-id="${a.id}">Concluir</button> <button class="btn ghost" data-a="ausente" data-id="${a.id}">Faltou</button> <button class="btn ghost" data-a="cancelado" data-id="${a.id}">Cancelar</button>`:""}</span></li>`).join(""):`<li class="mute">Nenhum agendamento neste dia.</li>`}
 async function concluir(id){const ar=doc(db,"tenants",t.id,"agendamentos",id);return runTransaction(db,async tx=>{const a=await tx.get(ar);if(a.data().status!=="agendado")return false;
-const pr=(await tx.get(doc(db,"tenants",t.id,"profissionais",a.data().profId))).data()||{},fr=doc(db,"tenants",t.id,"fidelidade",a.data().clienteUid),f=(await tx.get(fr)).data()||{};let n=(f.n||0)+1,b=f.brindes||0,ganhou=false;if(n>=meta){n-=meta;b++;ganhou=true}
+const pr=(await tx.get(doc(db,"tenants",t.id,"profissionais",a.data().profId))).data()||{},fr=doc(db,"tenants",t.id,"fidelidade",a.data().clienteUid),f=(await tx.get(fr)).data()||{};let n=(f.n||0)+1,b=f.brindes||0,ganhou=false;if(t.fidelidade?.ativo&&n>=(t.fidelidade.meta||10)){n-=meta;b++;ganhou=true}
 tx.update(ar,{status:"concluido",comissaoPct:Number(pr.comissao||0)});tx.set(fr,{n,brindes:b});return ganhou})}
 D.onchange=lista;L.onclick=e=>{const b=e.target.closest("[data-a]");if(!b)return;acao(b,async()=>{const{a,id}=b.dataset;
 if(a==="concluido"){toast(await concluir(id)?"Concluído. O cliente ganhou um brinde!":"Atendimento concluído.")}else{await cancelar(t.id,id,a);toast("Atualizado.")}await lista()})};await lista()};
@@ -212,7 +236,7 @@ let exec=0;
 const lim=(p,ms=10000)=>Promise.race([p,new Promise((_,no)=>setTimeout(()=>no({message_pt:"O servidor demorou a responder. Verifique a internet e a configuração do Firebase."}),ms))]);
 const aviso=(h,m)=>{if($("#boot"))$("#main").innerHTML=`<section class="hero"><h1>${h}</h1><p class="lead">${m}</p></section>`};
 async function rotear(){if(!CONFIG_OK)return aviso("Falta configurar o Firebase","Abra app.js e cole a configuração do seu projeto Firebase na constante FIREBASE, no topo do arquivo.");const id=++exec,r=location.hash.replace(/^#\/?/,"")||"index",pg=P[r]?r:"index";
-try{const s=await lim(sessao()),t=await lim(carregarTenant(s?.tenantId||null));if(id!==exec)return;
+try{const s=await lim(sessao()),t=await lim(carregarTenant(s?.tenantId||null));if(id!==exec)return;if(!t)aplicarTema();
 $("#main").replaceChildren(document.getElementById("t-"+pg).content.cloneNode(true));document.body.dataset.page=pg;topo(t,s);
 const ln=()=>document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));ln();await P[pg](t,s);ln();scrollTo(0,0)}
 catch(e){console.error(e);aviso("Não foi possível carregar",esc(msgErro(e)));toast(msgErro(e),"err")}}
