@@ -20,9 +20,18 @@ function cpfValido(v){const d=v.replace(/\D/g,"");if(d.length!==11||/^(\d)\1+$/.
 const slug=()=>{const s=new URLSearchParams(location.search).get("s");if(s)localStorage.setItem("slug",s);return s||localStorage.getItem("slug")};
 const href=p=>"#/"+p.replace(".html","");
 function lum(h){const[r,g,b]=[1,3,5].map(i=>parseInt(h.substr(i,2),16)/255).map(v=>v<=.03928?v/12.92:((v+.055)/1.055)**2.4);return .2126*r+.7152*g+.0722*b}
-function aplicarTema(t={}){const R=document.documentElement,c=/^#[0-9a-f]{6}$/i.test(t.cor)?t.cor:"#23395b";
-R.style.setProperty("--brand",c);R.style.setProperty("--on-brand",lum(c)>.4?"#111":"#fff");
-R.style.setProperty("--r",{reto:"4px",suave:"14px",redondo:"26px"}[t.estilo]||"14px");R.dataset.theme=t.tema==="escuro"?"dark":"light"}
+const FONTES={classica:["'Playfair Display',Georgia,serif","'Inter',system-ui,sans-serif","Playfair+Display:wght@400;600&family=Inter:wght@400;600"],
+moderna:["'Inter',system-ui,sans-serif","'Inter',system-ui,sans-serif","Inter:wght@400;600;700"],
+editorial:["'DM Serif Display',Georgia,serif","'DM Sans',system-ui,sans-serif","DM+Serif+Display&family=DM+Sans:wght@400;600"],
+industrial:["'Oswald',Impact,sans-serif","'Inter',system-ui,sans-serif","Oswald:wght@400;600&family=Inter:wght@400;600"],
+geometrica:["'Syne',system-ui,sans-serif","'DM Sans',system-ui,sans-serif","Syne:wght@500;700&family=DM+Sans:wght@400;600"],
+artesanal:["'Fraunces',Georgia,serif","'Inter',system-ui,sans-serif","Fraunces:wght@400;600&family=Inter:wght@400;600"]};
+function aplicarTema(t={}){const R=document.documentElement,S=(k,v)=>R.style.setProperty(k,v),c=/^#[0-9a-f]{6}$/i.test(t.cor)?t.cor:"#23395b",F=FONTES[t.fonte]||FONTES.classica;
+S("--brand",c);S("--on-brand",lum(c)>.4?"#111":"#fff");S("--r",{reto:"2px",discreto:"8px",suave:"14px",redondo:"26px",capsula:"40px"}[t.estilo]||"14px");
+R.dataset.theme={escuro:"dark",argila:"argila",nevoa:"nevoa"}[t.tema]||"light";R.dataset.fundo=t.fundo||"";S("--serif",F[0]);S("--sans",F[1]);
+let l=document.getElementById("gf");if(!l){l=document.createElement("link");l.id="gf";l.rel="stylesheet";document.head.append(l)}const u="https://fonts.googleapis.com/css2?family="+F[2]+"&display=swap";if(l.href!==u)l.href=u;
+S("--bw",(t.borda??1)+"px");S("--op",(t.opac??100)+"%");S("--sh",["none","0 1px 0 var(--line)","0 12px 28px -18px rgb(0 0 0/.4)","0 26px 50px -22px rgb(0 0 0/.5)"][t.prof||0]);S("--bright",(t.brilho??100)+"%");S("--lg",(t.logoTam||36)+"px")}
+const logoTag=(t,pos,cls="")=>{const x=t?.tema;return x?.logo&&pos.includes(x.logoPos||"lado")?`<img class="logo lf-${x.logoForma||"livre"} ${cls}" src="${x.logo}" alt="${esc(t.nome)}">`:""};
 async function carregarTenant(id){id=id||slug();if(!id)return null;const d=await getDoc(doc(db,"tenants",id));if(!d.exists())return null;
 const t={id:d.id,...d.data()};if(t.status==="suspenso")return{...t,suspenso:true};aplicarTema(t.tema);document.title=t.nome;pwa(t);return t}
 
@@ -43,16 +52,32 @@ function topo(t,s){const n=[];
 if(s?.papel==="cliente")n.push(["agendar.html","Agendar"],["cliente.html","Meu perfil"]);
 if(s?.papel==="proprietario")n.push(["agendamentos.html","Agenda"],["unidades.html","Unidades"],["profissionais.html","Profissionais"],["servicos.html","Serviços"],["avaliacoes.html","Avaliações"],["indicadores.html","Indicadores"]);
 if(s?.papel==="master")n.push(["master.html","Plataforma"],["personalizacao.html","Aparência"]);
-$("#topo").innerHTML=`<a class="marca" data-l="index.html">${t?.tema?.logo?`<img src="${t.tema.logo}" alt="" width="28" height="28" style="border-radius:6px;vertical-align:middle;margin-right:.5rem">`:""}${esc(t?.nome||"Agenda")}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}">${l}</a>`).join("")}${s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
+$("#topo").innerHTML=`<a class="marca ${t?.tema?.logoPos==='centro'?"col":""}" data-l="index.html">${logoTag(t,["lado","centro","so"])}${t?.tema?.logoPos==="so"&&t.tema.logo?"":esc(t?.nome||"Agenda")}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}">${l}</a>`).join("")}${s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
 $("#sair")?.addEventListener("click",async()=>{await signOut(auth);location.replace(href("index.html"))})}
 
 /* ==== 6. PÁGINAS (cada uma só roda quando <body data-page="..."> coincide) ==== */
 const P={};
+function revelar(){const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("vis");io.unobserve(e.target)}}),{threshold:.12});document.querySelectorAll(".rv").forEach((x,i)=>{x.style.transitionDelay=(i%4)*70+"ms";io.observe(x)})}
 P.index=async t=>{const h=$("#hero");
 if(t?.suspenso)return h.innerHTML=`<h1>Estabelecimento indisponível</h1><p class="lead">Este estabelecimento está temporariamente fora do ar.</p>`;
-if(t)return h.innerHTML=`<h1>${esc(t.nome)}</h1><p class="lead">${esc(t.descricao||"Agende seu horário em poucos toques.")}</p><a class="btn" data-l="login.html">Entrar ou criar conta</a>`+await rev(t);
-const q=await getDocs(query(collection(db,"tenants"),where("status","==","ativo"),limit(20)));
-h.innerHTML=`<h1>Escolha onde quer ser atendido</h1>`+(q.empty?`<p class="lead">Nenhum estabelecimento cadastrado ainda. Peça ao administrador da plataforma para criar o primeiro.</p>`:`<div class="grid" style="width:100%">${q.docs.map(d=>`<a class="card lnk" href="?s=${encodeURIComponent(d.id)}#/index"><strong>${esc(d.data().nome)}</strong><br><span class="mute">${esc(d.data().descricao||"")}</span></a>`).join("")}</div>`)};
+if(!t){const q=await getDocs(query(collection(db,"tenants"),where("status","==","ativo"),limit(20)));
+return h.innerHTML=`<h1>Escolha onde quer ser atendido</h1>`+(q.empty?`<p class="lead">Nenhum estabelecimento cadastrado ainda. Peça ao administrador da plataforma para criar o primeiro.</p>`:`<div class="grid" style="width:100%">${q.docs.map(d=>`<a class="card lnk" href="?s=${encodeURIComponent(d.id)}#/index"><strong>${esc(d.data().nome)}</strong><br><span class="mute">${esc(d.data().descricao||"")}</span></a>`).join("")}</div>`)}
+const ler=async n=>(await getDocs(collection(db,"tenants",t.id,n))).docs.map(d=>({id:d.id,...d.data()})),tm=t.tema||{};
+const[V,PR,SV,rv]=await Promise.all([ler("vitrine"),ler("profissionais"),ler("servicos"),rev(t)]);
+const cta=`<a class="btn cta" data-l="agendar.html">Agendar horário</a>`,fig=v=>`<figure class="rv"><img src="${v.img}" alt="${esc(v.legenda||v.tipo)}" loading="lazy"><figcaption>${esc(v.legenda||"")}</figcaption></figure>`;
+const capa=V.find(v=>v.tipo==="capa"),fotos=V.filter(v=>v!==capa).sort((a,b)=>a.ordem-b.ordem),todas=[capa,...fotos].filter(Boolean),L=tm.layout||"cinema";
+const txt=`${logoTag(t,["hero"],"hero-logo")}<h1>${esc(t.nome)}</h1><p class="lead">${esc(t.descricao||"")}</p>${cta}`;let topoH="";
+if(L==="cinema")topoH=`<section class="cine"><div class="cine-img" ${capa?`style="background-image:url('${capa.img}')"`:""}></div><div class="cine-txt">${txt}</div></section>${fotos.length?`<section class="strip">${fotos.map(fig).join("")}</section>`:""}`;
+if(L==="mosaico")topoH=`<section class="sec"><div class="mos"><div class="mos-t rv">${txt}</div>${todas.slice(0,8).map(fig).join("")}</div></section>`;
+if(L==="editorial")topoH=`<section class="edi"><div class="edi-t">${txt}</div><div class="edi-f">${todas.map(fig).join("")||""}</div></section>`;
+const eq=PR.filter(p=>p.ativo!==false),sv=SV.filter(v=>v.ativo!==false);
+$("#main").classList.add("solto");
+h.className="home";h.innerHTML=(tm.logo&&tm.logoPos==="marca"?`<img class="dagua" src="${tm.logo}" alt="">`:"")+topoH+
+(eq.length?`<section class="sec"><h2 class="rv">Nossa equipe</h2><div class="equipe">${eq.map(p=>`<div class="rv eq"><span class="arch">${p.foto?`<img src="${p.foto}" alt="">`:`<i>${esc((p.nome||"?")[0])}</i>`}</span><strong>${esc(p.nome)}</strong></div>`).join("")}</div></section>`:"")+
+(sv.length?`<section class="sec"><h2 class="rv">Serviços</h2><ul class="lista rv">${sv.map(v=>`<li><span>${esc(v.nome)}</span><strong>${brl(v.preco)}</strong></li>`).join("")}</ul></section>`:"")+
+(rv?`<section class="sec"><h2 class="rv">Quem já passou por aqui</h2>${rv}</section>`:"")+`<section class="sec fim rv"><h2>Pronto para o seu horário?</h2>${cta}</section>`;
+document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));revelar();
+const im=$(".cine-img");if(im&&!matchMedia("(prefers-reduced-motion:reduce)").matches){let w=0;const f=()=>{if(!im.isConnected)return removeEventListener("scroll",f);if(w)return;w=requestAnimationFrame(()=>{w=0;im.style.setProperty("--py",Math.min(scrollY,900)*.18+"px")})};addEventListener("scroll",f,{passive:true})}};
 
 P.login=async(t,s)=>{if(s)return irParaPainel();const f=$("#f");
 f.onsubmit=e=>{e.preventDefault();acao($("button",f),async()=>{await signInWithEmailAndPassword(auth,f.email.value.trim(),f.senha.value);await irParaPainel()})};
@@ -74,11 +99,17 @@ acao($("button",f),async()=>{const v={};CAMPOS.forEach(k=>v[k]=f[k].value.trim()
 P.personalizacao=async(t,s)=>{if(!exigir(s,["master"]))return;const f=$("#f"),sel=$("#lojas"),q=await getDocs(collection(db,"tenants"));
 if(q.empty){$("#carga").remove();toast("Crie um estabelecimento primeiro, na tela Plataforma.","err");return}
 const L=new Map(q.docs.map(d=>[d.id,{id:d.id,...d.data()}]));sel.innerHTML=[...L.values()].map(x=>`<option value="${esc(x.id)}">${esc(x.nome)}</option>`).join("");let cur,logo="";
-const ler=()=>({cor:f.cor.value,tema:f.tema.value,estilo:f.estilo.value,logo});
-const escolher=()=>{cur=L.get(sel.value);logo=cur.tema?.logo||"";f.nome.value=cur.nome||"";f.descricao.value=cur.descricao||"";f.cor.value=cur.tema?.cor||"#23395b";f.tema.value=cur.tema?.tema||"claro";f.estilo.value=cur.tema?.estilo||"suave";f.logo.value="";aplicarTema(cur.tema)};
-$("#carga").remove();f.hidden=false;escolher();sel.onchange=escolher;
-f.logo.onchange=async()=>{if(f.logo.files[0]){logo=await imgData(f.logo.files[0],256);toast("Logo carregada. Salve para publicar.")}};
-f.oninput=e=>{if(e.target!==f.logo)aplicarTema(ler())};$("#descartar").onclick=escolher;
+const ler=()=>({cor:f.cor.value,tema:f.tema.value,estilo:f.estilo.value,fundo:f.fundo.value,fonte:f.fonte.value,borda:+f.borda.value,opac:+f.opac.value,prof:+f.prof.value,brilho:+f.brilho.value,logo,logoTam:+f.logoTam.value,logoPos:f.logoPos.value,logoForma:f.logoForma.value,layout:f.layout.value});
+const pv=()=>{const tm=ler();aplicarTema(tm);topo({...cur,nome:f.nome.value,tema:tm},s);document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l))};
+async function galeria(){const g=await getDocs(collection(db,"tenants",cur.id,"vitrine"));$("#gal").innerHTML=g.empty?`<p class="mute">Nenhuma foto na vitrine ainda.</p>`:g.docs.map(d=>`<figure class="mini"><img src="${d.data().img}" alt=""><figcaption>${esc(d.data().tipo)}</figcaption><button type="button" data-x="${d.id}" aria-label="Remover foto">×</button></figure>`).join("")}
+const D={cor:"#23395b",tema:"claro",estilo:"suave",fundo:"",fonte:"classica",borda:1,opac:100,prof:0,brilho:100,logoTam:36,logoPos:"lado",logoForma:"livre",layout:"cinema"};
+const escolher=async()=>{cur=L.get(sel.value);const x={...D,...cur.tema};logo=x.logo||"";f.nome.value=cur.nome||"";f.descricao.value=cur.descricao||"";Object.keys(D).forEach(k=>f[k].value=x[k]);f.logo.value="";pv();await galeria()};
+$("#carga").remove();f.hidden=false;await escolher();sel.onchange=escolher;
+f.logo.onchange=async()=>{if(f.logo.files[0]){logo=await imgData(f.logo.files[0],320,true);pv();toast("Logo carregada. Salve para publicar.")}};
+f.oninput=e=>{if(!["logo","fotos","tipo","legenda"].includes(e.target.name))pv()};$("#descartar").onclick=escolher;
+$("#gal").onclick=e=>{const b=e.target.closest("[data-x]");if(b)acao(b,async()=>{await deleteDoc(doc(db,"tenants",cur.id,"vitrine",b.dataset.x));await galeria()})};
+$("#addfoto").onclick=e=>acao(e.currentTarget,async()=>{const fs=[...f.fotos.files];if(!fs.length)return toast("Escolha ao menos uma foto.","err");
+for(const x of fs)await addDoc(collection(db,"tenants",cur.id,"vitrine"),{img:await imgData(x,1000),legenda:f.legenda.value.trim(),tipo:f.tipo.value,ordem:Date.now()});f.fotos.value="";toast(`${fs.length} foto(s) adicionada(s).`);await galeria()});
 f.onsubmit=e=>{e.preventDefault();if(!f.nome.value.trim())return toast("Informe o nome do estabelecimento.","err");
 acao($("button[type=submit]",f),async()=>{const novo={nome:f.nome.value.trim(),descricao:f.descricao.value.trim(),tema:ler()};await updateDoc(doc(db,"tenants",cur.id),novo);await auditar("tenant.aparencia",{id:cur.id});Object.assign(cur,novo);pwa(cur);toast("Aparência salva.")})}};
 
@@ -135,7 +166,7 @@ $("#fav").href=ic(64);$("#ati").href=ic(180);$("meta[name=theme-color]").content
 $("#mf").href=URL.createObjectURL(new Blob([JSON.stringify({name:t.nome,short_name:t.nome.slice(0,12),start_url:location.origin+location.pathname+"?s="+t.id,scope:location.origin+location.pathname,display:"standalone",background_color:cor,theme_color:cor,icons:[192,512].map(z=>({src:ic(z),sizes:z+"x"+z,type:"image/png"}))})],{type:"application/manifest+json"}))};i.src=l}
 
 /* ==== 6b. IMAGENS (plano A: reduzidas no navegador e guardadas no próprio Firestore) ==== */
-const imgData=(f,max=480)=>new Promise((ok,no)=>{const i=new Image(),u=URL.createObjectURL(f);i.onload=()=>{const k=Math.min(1,max/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL("image/jpeg",.78))};i.onerror=no;i.src=u});
+const imgData=(f,max=480,png)=>new Promise((ok,no)=>{const i=new Image(),u=URL.createObjectURL(f);i.onload=()=>{const k=Math.min(1,max/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL(png?"image/png":"image/jpeg",.78))};i.onerror=no;i.src=u});
 
 /* ==== 6c. CADASTROS DO PROPRIETÁRIO (unidades, profissionais, serviços) ==== */
 const CFG={unidades:{t:"Unidades",f:[["nome","Nome"],["endereco","Endereço"],["telefone","Telefone"],["capacidade","Atendimentos simultâneos","number"],["abre","Abre","time"],["fecha","Fecha","time"]]},
@@ -246,7 +277,7 @@ const lim=(p,ms=10000)=>Promise.race([p,new Promise((_,no)=>setTimeout(()=>no({m
 const aviso=(h,m)=>{if($("#boot"))$("#main").innerHTML=`<section class="hero"><h1>${h}</h1><p class="lead">${m}</p></section>`};
 async function rotear(){if(!CONFIG_OK)return aviso("Falta configurar o Firebase","Abra app.js e cole a configuração do seu projeto Firebase na constante FIREBASE, no topo do arquivo.");const id=++exec,r=location.hash.replace(/^#\/?/,"")||"index",pg=P[r]?r:"index";
 try{const s=await lim(sessao()),t=await lim(carregarTenant(s?.tenantId||null));if(id!==exec)return;if(!t)aplicarTema();
-await vt(()=>{$("#main").replaceChildren(document.getElementById("t-"+pg).content.cloneNode(true));document.body.dataset.page=pg;topo(t,s)});
+await vt(()=>{$("#main").classList.remove("solto");$("#main").replaceChildren(document.getElementById("t-"+pg).content.cloneNode(true));document.body.dataset.page=pg;topo(t,s)});
 const ln=()=>document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));ln();await P[pg](t,s);ln();scrollTo(0,0)}
 catch(e){console.error(e);aviso("Não foi possível carregar",esc(msgErro(e)));toast(msgErro(e),"err")}}
 addEventListener("hashchange",rotear);rotear();
