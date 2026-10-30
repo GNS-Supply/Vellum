@@ -8,6 +8,7 @@ const app=initializeApp(FIREBASE),auth=getAuth(app),db=getFirestore(app);
 
 /* ==== 2. UTILITÁRIOS ==== */
 const $=(s,r=document)=>r.querySelector(s);
+const vt=f=>document.startViewTransition&&!matchMedia("(prefers-reduced-motion:reduce)").matches?document.startViewTransition(f).updateCallbackDone:Promise.resolve(f());
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function toast(msg,tipo="ok"){const t=document.createElement("div");t.className="toast "+tipo;t.setAttribute("role",tipo==="err"?"alert":"status");t.textContent=msg;$("#toasts").append(t);setTimeout(()=>t.remove(),4500)}
 const ERROS={"auth/invalid-credential":"E-mail ou senha incorretos.","auth/email-already-in-use":"Este e-mail já tem conta. Entre ou recupere a senha.","auth/weak-password":"A senha precisa ter ao menos 6 caracteres.","auth/invalid-email":"E-mail inválido.","auth/popup-closed-by-user":"Login com Google cancelado.","auth/too-many-requests":"Muitas tentativas. Aguarde alguns minutos.","permission-denied":"Você não tem permissão para esta ação."};
@@ -182,15 +183,20 @@ const profs=()=>PR.filter(p=>p.unidadeId===st.u&&p.ativo!==false),sv=()=>SV.find
 const dias=[...Array(14)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)});
 const cl=(sel,any)=>sel?"sel":any?"dim":"";
 const opt=(k,id,h,sel,any)=>`<button type="button" class="opt ${cl(sel,any)}" data-k="${k}" data-id="${esc(id)}" aria-pressed="${sel}">${h}</button>`;
-const pc=(id,nome,foto,sel)=>`<button type="button" class="pcard ${cl(sel,st.p!==null)}" data-k="p" data-id="${esc(id)}" aria-pressed="${sel}"><span class="arch">${foto?`<img src="${foto}" alt="">`:`<i>${esc(id===""?"✦":(nome[0]||"?").toUpperCase())}</i>`}</span><strong>${esc(nome)}</strong></button>`;
-const ir=n=>{st.step=n;draw()};
+const pc=(id,nome,foto,sel)=>`<button type="button" class="pcard ${cl(sel,st.p!==null)}" data-k="p" data-id="${esc(id)}" aria-pressed="${sel}"><span class="arch${id===""?" mix":""}">${id===""?(profs().filter(x=>x.foto).slice(0,3).map(x=>`<img src="${x.foto}" alt="">`).join("")||`<i>✦</i>`):foto?`<img src="${foto}" alt="">`:`<i>${esc((nome[0]||"?").toUpperCase())}</i>`}<em class="tick">✓</em></span><strong>${esc(nome)}</strong></button>`;
+const marcar=b=>b.parentElement.querySelectorAll("button").forEach(x=>{const on=x===b;x.classList.remove("sel","dim");x.classList.add(on?"sel":"dim");x.setAttribute("aria-pressed",on)});
+const sumario=()=>{const c=[];if(st.step>0&&st.u&&!unica)c.push(`<span class="tg">${esc(U.find(x=>x.id===st.u)?.nome)}</span>`);
+if(st.step>1&&st.p!==null){const x=PR.find(y=>y.id===st.p);c.push(`<span class="tg"><span class="av">${x?.foto?`<img src="${x.foto}" alt="">`:"✦"}</span>${esc(x?.nome||"Sem preferência")}</span>`)}
+if(st.step>2&&st.s)c.push(`<span class="tg">${esc(sv().nome)}</span>`);if(st.step>3&&st.d)c.push(`<span class="tg">${esc(new Date(st.d+"T12:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"short"}))}</span>`);
+return c.length?`<div class="sumario">${c.join("")}</div>`:""};
+const ir=n=>{document.documentElement.dataset.dir=n<st.step?"back":"fwd";vt(()=>{st.step=n;draw()})};
 function draw(){const e=st.step,bar=`<ol class="steps">${NOMES.map((n,i)=>`<li class="${i<e?"feito":i===e?"atual":""}"><b>${i<e?"✓":i+1}</b><span>${n}</span></li>`).join("")}</ol>`;let p="";
 if(e===0)p=`<h2>Onde você quer ser atendido?</h2><div class="opts">${U.map(u=>opt("u",u.id,`<strong>${esc(u.nome)}</strong><small>${esc(u.endereco||"")}</small>`,st.u===u.id,st.u)).join("")}</div>`;
 if(e===1)p=`<h2>Com quem você prefere?</h2><div class="profs">${pc("","Sem preferência","",st.p==="")}${profs().map(x=>pc(x.id,x.nome,x.foto,st.p===x.id)).join("")}</div>`;
 if(e===2)p=`<h2>Qual serviço você quer?</h2><div class="opts">${SV.filter(v=>v.ativo!==false).map(v=>opt("s",v.id,`<strong>${esc(v.nome)}</strong><small>${brl(v.preco)}</small>`,st.s===v.id,st.s)).join("")}</div>`;
 if(e===3)p=`<h2>Qual dia fica melhor?</h2><div class="days">${dias.map(d=>{const x=new Date(d+"T12:00");return`<button type="button" class="day ${cl(st.d===d,0)}" data-k="d" data-id="${d}" aria-pressed="${st.d===d}"><small>${x.toLocaleDateString("pt-BR",{weekday:"short"})}</small><b>${d.slice(8)}</b><small>${x.toLocaleDateString("pt-BR",{month:"short"})}</small></button>`}).join("")}</div>`;
 if(e===4)p=`<h2>Escolha o horário</h2><div class="slots" id="hs"></div><div id="res"></div>`;
-A.innerHTML=bar+`<div class="panel">${p}</div>`+(e>(unica?1:0)?`<button class="btn ghost voltar" data-back>Voltar</button>`:"");if(e===4)slots()}
+A.innerHTML=bar+sumario()+`<div class="panel">${p}</div>`+(e>(unica?1:0)?`<button class="btn ghost voltar" data-back>Voltar</button>`:"");if(e===4)slots()}
 async function slots(){const H=$("#hs"),un=U.find(x=>x.id===st.u),v=sv(),n=Math.ceil(v.duracao/30);H.innerHTML=`<div class="skel"></div>`;
 const q=[where("u","==",un.id),where("d","==",st.d)],[lk,cp]=await Promise.all([getDocs(query(C("locks"),...q)),getDocs(query(C("cap"),...q))]),Lk=new Set(lk.docs.map(d=>d.id)),K={};cp.docs.forEach(d=>K[d.id]=d.data().n);
 const ps=profs().filter(p=>st.p===""||p.id===st.p),out=[];
@@ -208,13 +214,16 @@ A.onclick=e=>{const b=e.target.closest("button");if(!b)return;
 if(b.hasAttribute("data-back"))return ir(st.step-1);
 if(b.hasAttribute("data-novo")){Object.assign(st,{step:unica?1:0,p:null,s:"",d:"",sl:null});return draw()}
 const{k,id}=b.dataset;
-if(k==="u"){st.u=id;st.p=null;draw();setTimeout(()=>ir(1),300)}
-if(k==="p"){st.p=id;draw();setTimeout(()=>ir(2),300)}
-if(k==="s"){st.s=id;draw();setTimeout(()=>ir(3),300)}
-if(k==="d"){st.d=id;draw();setTimeout(()=>ir(4),300)}
+if(k==="u"){st.u=id;st.p=null;marcar(b);setTimeout(()=>ir(1),380)}
+if(k==="p"){st.p=id;marcar(b);setTimeout(()=>ir(2),380)}
+if(k==="s"){st.s=id;marcar(b);setTimeout(()=>ir(3),380)}
+if(k==="d"){st.d=id;marcar(b);setTimeout(()=>ir(4),380)}
 if(k==="h"){st.sl=st.lista[id];document.querySelectorAll("#hs .chip").forEach(x=>x.classList.toggle("sel",x===b));const v=sv();
 $("#res").innerHTML=`<div class="card resumo"><p style="margin:0 0 .8rem"><strong>${esc(v.nome)}</strong> · ${esc(fmt(st.d+"T"+st.sl.h))}<br><span class="mute">${st.p===""?"Profissional disponível no horário":"Com "+esc(PR.find(x=>x.id===st.p)?.nome||"")} · ${brl(v.preco)}</span></p><button class="btn" id="ok">Confirmar agendamento</button></div>`;$("#res").scrollIntoView({behavior:"smooth",block:"nearest"})}
 if(b.id==="ok")acao(b,async()=>{const p=await reservar();A.innerHTML=`<div class="sucesso"><div class="ok">✓</div><h2>Agendado!</h2><p class="lead" style="margin:0 auto 1rem">${esc(p.nome)} · ${esc(fmt(st.d+"T"+st.sl.h))}</p><button class="btn ghost" data-novo>Fazer outro agendamento</button></div>`;await meus()})};
+if(matchMedia("(hover:hover)").matches){const alvo=e=>e.target.closest(".pcard")?.querySelector(".arch");
+A.onpointermove=e=>{const a=alvo(e);if(!a)return;const r=a.getBoundingClientRect();a.style.setProperty("--px",((e.clientX-r.left)/r.width-.5)*2);a.style.setProperty("--py",((e.clientY-r.top)/r.height-.5)*2)};
+A.onpointerout=e=>{const a=alvo(e);a?.style.removeProperty("--px");a?.style.removeProperty("--py")}}
 draw();await meus()};
 
 /* ==== 6e. AGENDA DO PROPRIETÁRIO + FIDELIDADE ==== */
@@ -237,7 +246,7 @@ const lim=(p,ms=10000)=>Promise.race([p,new Promise((_,no)=>setTimeout(()=>no({m
 const aviso=(h,m)=>{if($("#boot"))$("#main").innerHTML=`<section class="hero"><h1>${h}</h1><p class="lead">${m}</p></section>`};
 async function rotear(){if(!CONFIG_OK)return aviso("Falta configurar o Firebase","Abra app.js e cole a configuração do seu projeto Firebase na constante FIREBASE, no topo do arquivo.");const id=++exec,r=location.hash.replace(/^#\/?/,"")||"index",pg=P[r]?r:"index";
 try{const s=await lim(sessao()),t=await lim(carregarTenant(s?.tenantId||null));if(id!==exec)return;if(!t)aplicarTema();
-$("#main").replaceChildren(document.getElementById("t-"+pg).content.cloneNode(true));document.body.dataset.page=pg;topo(t,s);
+await vt(()=>{$("#main").replaceChildren(document.getElementById("t-"+pg).content.cloneNode(true));document.body.dataset.page=pg;topo(t,s)});
 const ln=()=>document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));ln();await P[pg](t,s);ln();scrollTo(0,0)}
 catch(e){console.error(e);aviso("Não foi possível carregar",esc(msgErro(e)));toast(msgErro(e),"err")}}
 addEventListener("hashchange",rotear);rotear();
