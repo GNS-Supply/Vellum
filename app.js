@@ -9,6 +9,7 @@ const app=initializeApp(FIREBASE),auth=getAuth(app),db=getFirestore(app);
 /* ==== 2. UTILITÁRIOS ==== */
 const $=(s,r=document)=>r.querySelector(s);
 const vt=f=>document.startViewTransition&&!matchMedia("(prefers-reduced-motion:reduce)").matches?document.startViewTransition(f).updateCallbackDone:Promise.resolve(f());
+const marcar=b=>b.parentElement.querySelectorAll("button").forEach(x=>{const on=x===b;x.classList.toggle("sel",on);x.classList.toggle("dim",!on&&x.matches(".opt,.pcard"));x.setAttribute("aria-pressed",on)});
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function toast(msg,tipo="ok"){const t=document.createElement("div");t.className="toast "+tipo;t.setAttribute("role",tipo==="err"?"alert":"status");t.textContent=msg;$("#toasts").append(t);setTimeout(()=>t.remove(),4500)}
 const ERROS={"auth/invalid-credential":"E-mail ou senha incorretos.","auth/email-already-in-use":"Este e-mail já tem conta. Entre ou recupere a senha.","auth/weak-password":"A senha precisa ter ao menos 6 caracteres.","auth/invalid-email":"E-mail inválido.","auth/popup-closed-by-user":"Login com Google cancelado.","auth/too-many-requests":"Muitas tentativas. Aguarde alguns minutos.","permission-denied":"Você não tem permissão para esta ação."};
@@ -28,7 +29,7 @@ geometrica:["'Syne',system-ui,sans-serif","'DM Sans',system-ui,sans-serif","Syne
 artesanal:["'Fraunces',Georgia,serif","'Inter',system-ui,sans-serif","Fraunces:wght@400;600&family=Inter:wght@400;600"]};
 function aplicarTema(t={}){const R=document.documentElement,S=(k,v)=>R.style.setProperty(k,v),c=/^#[0-9a-f]{6}$/i.test(t.cor)?t.cor:"#23395b",F=FONTES[t.fonte]||FONTES.classica;
 S("--brand",c);S("--on-brand",lum(c)>.4?"#111":"#fff");S("--r",{reto:"2px",discreto:"8px",suave:"14px",redondo:"26px",capsula:"40px"}[t.estilo]||"14px");
-R.dataset.theme={escuro:"dark",argila:"argila",nevoa:"nevoa"}[t.tema]||"light";R.dataset.fundo=t.fundo||"";S("--serif",F[0]);S("--sans",F[1]);
+R.dataset.theme={escuro:"dark",argila:"argila",nevoa:"nevoa"}[t.tema]||"light";R.dataset.fundo=t.fundo||"";R.dataset.foto=t.fotoForma||"arco";R.dataset.efeito=t.fotoEfeito||"contorno";S("--serif",F[0]);S("--sans",F[1]);
 let l=document.getElementById("gf");if(!l){l=document.createElement("link");l.id="gf";l.rel="stylesheet";document.head.append(l)}const u="https://fonts.googleapis.com/css2?family="+F[2]+"&display=swap";if(l.href!==u)l.href=u;
 S("--bw",(t.borda??1)+"px");S("--op",(t.opac??100)+"%");S("--sh",["none","0 1px 0 var(--line)","0 12px 28px -18px rgb(0 0 0/.4)","0 26px 50px -22px rgb(0 0 0/.5)"][t.prof||0]);S("--bright",(t.brilho??100)+"%");S("--lg",(t.logoTam||36)+"px")}
 const logoTag=(t,pos,cls="")=>{const x=t?.tema;return x?.logo&&pos.includes(x.logoPos||"lado")?`<img class="logo lf-${x.logoForma||"livre"} ${cls}" src="${x.logo}" alt="${esc(t.nome)}">`:""};
@@ -99,11 +100,12 @@ acao($("button",f),async()=>{const v={};CAMPOS.forEach(k=>v[k]=f[k].value.trim()
 P.personalizacao=async(t,s)=>{if(!exigir(s,["master"]))return;const f=$("#f"),sel=$("#lojas"),q=await getDocs(collection(db,"tenants"));
 if(q.empty){$("#carga").remove();toast("Crie um estabelecimento primeiro, na tela Plataforma.","err");return}
 const L=new Map(q.docs.map(d=>[d.id,{id:d.id,...d.data()}]));sel.innerHTML=[...L.values()].map(x=>`<option value="${esc(x.id)}">${esc(x.nome)}</option>`).join("");let cur,logo="";
-const ler=()=>({cor:f.cor.value,tema:f.tema.value,estilo:f.estilo.value,fundo:f.fundo.value,fonte:f.fonte.value,borda:+f.borda.value,opac:+f.opac.value,prof:+f.prof.value,brilho:+f.brilho.value,logo,logoTam:+f.logoTam.value,logoPos:f.logoPos.value,logoForma:f.logoForma.value,layout:f.layout.value});
+const ler=()=>({cor:f.cor.value,tema:f.tema.value,estilo:f.estilo.value,fundo:f.fundo.value,fonte:f.fonte.value,borda:+f.borda.value,opac:+f.opac.value,prof:+f.prof.value,brilho:+f.brilho.value,logo,logoTam:+f.logoTam.value,logoPos:f.logoPos.value,logoForma:f.logoForma.value,layout:f.layout.value,fotoForma:f.fotoForma.value,fotoEfeito:f.fotoEfeito.value,dataModelo:f.dataModelo.value,horaModelo:f.horaModelo.value});
 const pv=()=>{const tm=ler();aplicarTema(tm);topo({...cur,nome:f.nome.value,tema:tm},s);document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l))};
 async function galeria(){const g=await getDocs(collection(db,"tenants",cur.id,"vitrine"));$("#gal").innerHTML=g.empty?`<p class="mute">Nenhuma foto na vitrine ainda.</p>`:g.docs.map(d=>`<figure class="mini"><img src="${d.data().img}" alt=""><figcaption>${esc(d.data().tipo)}</figcaption><button type="button" data-x="${d.id}" aria-label="Remover foto">×</button></figure>`).join("")}
-const D={cor:"#23395b",tema:"claro",estilo:"suave",fundo:"",fonte:"classica",borda:1,opac:100,prof:0,brilho:100,logoTam:36,logoPos:"lado",logoForma:"livre",layout:"cinema"};
+const D={cor:"#23395b",tema:"claro",estilo:"suave",fundo:"",fonte:"classica",borda:1,opac:100,prof:0,brilho:100,logoTam:36,logoPos:"lado",logoForma:"livre",layout:"cinema",fotoForma:"arco",fotoEfeito:"contorno",dataModelo:"faixa",horaModelo:"pilulas"};
 const escolher=async()=>{cur=L.get(sel.value);const x={...D,...cur.tema};logo=x.logo||"";f.nome.value=cur.nome||"";f.descricao.value=cur.descricao||"";Object.keys(D).forEach(k=>f[k].value=x[k]);f.logo.value="";pv();await galeria()};
+$("#amostra").innerHTML=["A","B","C"].map(n=>`<button type="button" class="pcard" data-k="p"><span class="arch"><i>${n}</i><em class="tick">✓</em></span><strong>Profissional ${n}</strong></button>`).join("");$("#amostra").onclick=e=>{const b=e.target.closest("button");if(b)marcar(b)};
 $("#carga").remove();f.hidden=false;await escolher();sel.onchange=escolher;
 f.logo.onchange=async()=>{if(f.logo.files[0]){logo=await imgData(f.logo.files[0],320,true);pv();toast("Logo carregada. Salve para publicar.")}};
 f.oninput=e=>{if(!["logo","fotos","tipo","legenda"].includes(e.target.name))pv()};$("#descartar").onclick=escolher;
@@ -211,29 +213,41 @@ if(!U.length||!SV.length){A.innerHTML=`<p class="lead">Este estabelecimento aind
 /* assistente em etapas: unidade, profissional, serviço, data, horário */
 const unica=U.length===1,st={step:unica?1:0,u:unica?U[0].id:"",p:null,s:"",d:"",sl:null,lista:[]},NOMES=["Unidade","Profissional","Serviço","Data","Horário"];
 const profs=()=>PR.filter(p=>p.unidadeId===st.u&&p.ativo!==false),sv=()=>SV.find(x=>x.id===st.s);
-const dias=[...Array(14)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)});
+const X=t.textos||{},TM=t.tema||{};const dias=[...Array(28)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)});
 const cl=(sel,any)=>sel?"sel":any?"dim":"";
 const opt=(k,id,h,sel,any)=>`<button type="button" class="opt ${cl(sel,any)}" data-k="${k}" data-id="${esc(id)}" aria-pressed="${sel}">${h}</button>`;
 const pc=(id,nome,foto,sel)=>`<button type="button" class="pcard ${cl(sel,st.p!==null)}" data-k="p" data-id="${esc(id)}" aria-pressed="${sel}"><span class="arch${id===""?" mix":""}">${id===""?(profs().filter(x=>x.foto).slice(0,3).map(x=>`<img src="${x.foto}" alt="">`).join("")||`<i>✦</i>`):foto?`<img src="${foto}" alt="">`:`<i>${esc((nome[0]||"?").toUpperCase())}</i>`}<em class="tick">✓</em></span><strong>${esc(nome)}</strong></button>`;
-const marcar=b=>b.parentElement.querySelectorAll("button").forEach(x=>{const on=x===b;x.classList.remove("sel","dim");x.classList.add(on?"sel":"dim");x.setAttribute("aria-pressed",on)});
 const sumario=()=>{const c=[];if(st.step>0&&st.u&&!unica)c.push(`<span class="tg">${esc(U.find(x=>x.id===st.u)?.nome)}</span>`);
 if(st.step>1&&st.p!==null){const x=PR.find(y=>y.id===st.p);c.push(`<span class="tg"><span class="av">${x?.foto?`<img src="${x.foto}" alt="">`:"✦"}</span>${esc(x?.nome||"Sem preferência")}</span>`)}
 if(st.step>2&&st.s)c.push(`<span class="tg">${esc(sv().nome)}</span>`);if(st.step>3&&st.d)c.push(`<span class="tg">${esc(new Date(st.d+"T12:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"short"}))}</span>`);
 return c.length?`<div class="sumario">${c.join("")}</div>`:""};
 const ir=n=>{document.documentElement.dataset.dir=n<st.step?"back":"fwd";vt(()=>{st.step=n;draw()})};
+const dx=d=>new Date(d+"T12:00"),wd=d=>dx(d).toLocaleDateString("pt-BR",{weekday:"short"}),mo=d=>dx(d).toLocaleDateString("pt-BR",{month:"short"}),rel=d=>d===dias[0]?"Hoje":d===dias[1]?"Amanhã":wd(d);
+const dataHTML=()=>{const m=TM.dataModelo||"faixa",b=(d,c,h)=>`<button type="button" class="${c} ${st.d===d?"sel":""}" data-k="d" data-id="${d}" aria-pressed="${st.d===d}">${h}</button>`;
+if(m==="calendario")return`<div class="cal">${["D","S","T","Q","Q","S","S"].map(x=>`<span class="cal-h">${x}</span>`).join("")}${"<span></span>".repeat(dx(dias[0]).getDay())}${dias.map(d=>b(d,"cal-d",`${d.slice(8)}${d.slice(8)==="01"||d===dias[0]?`<small>${mo(d)}</small>`:""}`)).join("")}</div>`;
+if(m==="lista")return`<div class="dlist">${dias.map(d=>b(d,"dl",`<span>${rel(d)}</span><small>${d.slice(8)} de ${mo(d)}</small>`)).join("")}</div>`;
+if(m==="destaque")return`<div class="days dest">${dias.map(d=>b(d,"dd",`<small>${wd(d)}</small><b>${d.slice(8)}</b><small>${mo(d)}</small>`)).join("")}</div>`;
+if(m==="etiquetas")return`<div class="tags">${dias.map(d=>b(d,"chip",`${rel(d)} ${d.slice(8)}`)).join("")}</div>`;
+return`<div class="days">${dias.map(d=>b(d,"day",`<small>${wd(d)}</small><b>${d.slice(8)}</b><small>${mo(d)}</small>`)).join("")}</div>`};
+const horasHTML=out=>{const m=TM.horaModelo||"pilulas",L=out.map((o,i)=>[o,i]),b=(o,i,c)=>`<button type="button" class="${c}" data-k="h" data-id="${i}">${o.h}</button>`;
+if(m==="grade")return`<div class="hgrade">${L.map(([o,i])=>b(o,i,"hq")).join("")}</div>`;
+if(m==="periodos")return[["Manhã",0,12],["Tarde",12,18],["Noite",18,24]].map(([n,a,z])=>{const g=L.filter(([o])=>+o.h.slice(0,2)>=a&&+o.h.slice(0,2)<z);return g.length?`<h3 class="per">${n}</h3><div class="slots">${g.map(([o,i])=>b(o,i,"chip")).join("")}</div>`:""}).join("");
+if(m==="lista")return`<div class="hlist">${L.map(([o,i])=>`<button type="button" class="hl" data-k="h" data-id="${i}"><b>${o.h}</b><span>Disponível</span></button>`).join("")}</div>`;
+if(m==="trilho")return`<div class="trilho">${L.map(([o,i])=>b(o,i,"ht")).join("")}</div>`;
+return`<div class="slots">${L.map(([o,i])=>b(o,i,"chip")).join("")}</div>`};
 function draw(){const e=st.step,bar=`<ol class="steps">${NOMES.map((n,i)=>`<li class="${i<e?"feito":i===e?"atual":""}"><b>${i<e?"✓":i+1}</b><span>${n}</span></li>`).join("")}</ol>`;let p="";
-if(e===0)p=`<h2>Onde você quer ser atendido?</h2><div class="opts">${U.map(u=>opt("u",u.id,`<strong>${esc(u.nome)}</strong><small>${esc(u.endereco||"")}</small>`,st.u===u.id,st.u)).join("")}</div>`;
-if(e===1)p=`<h2>Com quem você prefere?</h2><div class="profs">${pc("","Sem preferência","",st.p==="")}${profs().map(x=>pc(x.id,x.nome,x.foto,st.p===x.id)).join("")}</div>`;
-if(e===2)p=`<h2>Qual serviço você quer?</h2><div class="opts">${SV.filter(v=>v.ativo!==false).map(v=>opt("s",v.id,`<strong>${esc(v.nome)}</strong><small>${brl(v.preco)}</small>`,st.s===v.id,st.s)).join("")}</div>`;
-if(e===3)p=`<h2>Qual dia fica melhor?</h2><div class="days">${dias.map(d=>{const x=new Date(d+"T12:00");return`<button type="button" class="day ${cl(st.d===d,0)}" data-k="d" data-id="${d}" aria-pressed="${st.d===d}"><small>${x.toLocaleDateString("pt-BR",{weekday:"short"})}</small><b>${d.slice(8)}</b><small>${x.toLocaleDateString("pt-BR",{month:"short"})}</small></button>`}).join("")}</div>`;
-if(e===4)p=`<h2>Escolha o horário</h2><div class="slots" id="hs"></div><div id="res"></div>`;
+if(e===0)p=`<h2>${esc(X.tu||"Onde você quer ser atendido?")}</h2><div class="opts">${U.map(u=>opt("u",u.id,`<strong>${esc(u.nome)}</strong><small>${esc(u.endereco||"")}</small>`,st.u===u.id,st.u)).join("")}</div>`;
+if(e===1)p=`<h2>${esc(X.tp||"Com quem você prefere?")}</h2><div class="profs">${pc("","Sem preferência","",st.p==="")}${profs().map(x=>pc(x.id,x.nome,x.foto,st.p===x.id)).join("")}</div>`;
+if(e===2)p=`<h2>${esc(X.ts||"Qual serviço você quer?")}</h2><div class="opts">${SV.filter(v=>v.ativo!==false).map(v=>opt("s",v.id,`<strong>${esc(v.nome)}</strong><small>${brl(v.preco)}</small>`,st.s===v.id,st.s)).join("")}</div>`;
+if(e===3)p=`<h2>${esc(X.td||"Qual dia fica melhor?")}</h2>`+dataHTML();
+if(e===4)p=`<h2>${esc(X.th||"Escolha o horário")}</h2><div id="hs"></div><div id="res"></div>`;
 A.innerHTML=bar+sumario()+`<div class="panel">${p}</div>`+(e>(unica?1:0)?`<button class="btn ghost voltar" data-back>Voltar</button>`:"");if(e===4)slots()}
 async function slots(){const H=$("#hs"),un=U.find(x=>x.id===st.u),v=sv(),n=Math.ceil(v.duracao/30);H.innerHTML=`<div class="skel"></div>`;
 const q=[where("u","==",un.id),where("d","==",st.d)],[lk,cp]=await Promise.all([getDocs(query(C("locks"),...q)),getDocs(query(C("cap"),...q))]),Lk=new Set(lk.docs.map(d=>d.id)),K={};cp.docs.forEach(d=>K[d.id]=d.data().n);
 const ps=profs().filter(p=>st.p===""||p.id===st.p),out=[];
 for(let m=mins(un.abre);m+v.duracao<=mins(un.fecha);m+=30){if(new Date(`${st.d}T${hm(m)}`)<=new Date())continue;const us=[...Array(n)].map((_,i)=>hm(m+30*i));
 if(us.some(h=>(K[`${un.id}_${st.d}_${h}`]||0)>=un.capacidade))continue;const livres=ps.filter(p=>us.every(h=>!Lk.has(`${p.id}_${st.d}_${h}`)));if(livres.length)out.push({h:hm(m),us,livres})}
-st.lista=out;H.innerHTML=out.length?out.map((o,i)=>`<button type="button" class="chip" data-k="h" data-id="${i}">${o.h}</button>`).join(""):`<p class="mute">Sem horários livres neste dia. Volte e escolha outra data ou outro profissional.</p>`}
+st.lista=out;H.innerHTML=out.length?horasHTML(out):`<p class="mute">Sem horários livres neste dia. Volte e escolha outra data ou outro profissional.</p>`}
 async function reservar(){const un=U.find(x=>x.id===st.u),v=sv(),sl=st.sl;
 for(const p of sl.livres){try{await runTransaction(db,async tx=>{const lr=sl.us.map(h=>doc(C("locks"),`${p.id}_${st.d}_${h}`)),cr=sl.us.map(h=>doc(C("cap"),`${un.id}_${st.d}_${h}`));
 const L=await Promise.all(lr.map(r=>tx.get(r))),K=await Promise.all(cr.map(r=>tx.get(r)));
@@ -249,7 +263,7 @@ if(k==="u"){st.u=id;st.p=null;marcar(b);setTimeout(()=>ir(1),380)}
 if(k==="p"){st.p=id;marcar(b);setTimeout(()=>ir(2),380)}
 if(k==="s"){st.s=id;marcar(b);setTimeout(()=>ir(3),380)}
 if(k==="d"){st.d=id;marcar(b);setTimeout(()=>ir(4),380)}
-if(k==="h"){st.sl=st.lista[id];document.querySelectorAll("#hs .chip").forEach(x=>x.classList.toggle("sel",x===b));const v=sv();
+if(k==="h"){st.sl=st.lista[id];document.querySelectorAll("#hs [data-k=h]").forEach(x=>x.classList.toggle("sel",x===b));const v=sv();
 $("#res").innerHTML=`<div class="card resumo"><p style="margin:0 0 .8rem"><strong>${esc(v.nome)}</strong> · ${esc(fmt(st.d+"T"+st.sl.h))}<br><span class="mute">${st.p===""?"Profissional disponível no horário":"Com "+esc(PR.find(x=>x.id===st.p)?.nome||"")} · ${brl(v.preco)}</span></p><button class="btn" id="ok">Confirmar agendamento</button></div>`;$("#res").scrollIntoView({behavior:"smooth",block:"nearest"})}
 if(b.id==="ok")acao(b,async()=>{const p=await reservar();A.innerHTML=`<div class="sucesso"><div class="ok">✓</div><h2>Agendado!</h2><p class="lead" style="margin:0 auto 1rem">${esc(p.nome)} · ${esc(fmt(st.d+"T"+st.sl.h))}</p><button class="btn ghost" data-novo>Fazer outro agendamento</button></div>`;await meus()})};
 if(matchMedia("(hover:hover)").matches){const alvo=e=>e.target.closest(".pcard")?.querySelector(".arch");
@@ -259,6 +273,9 @@ draw();await meus()};
 
 /* ==== 6e. AGENDA DO PROPRIETÁRIO + FIDELIDADE ==== */
 P.agendamentos=async(t,s)=>{if(!exigir(s,["proprietario"]))return;
+const tx=$("#txt"),DEF={tu:"Onde você quer ser atendido?",tp:"Com quem você prefere?",ts:"Qual serviço você quer?",td:"Qual dia fica melhor?",th:"Escolha o horário"};
+Object.keys(DEF).forEach(k=>{tx[k].placeholder=DEF[k];tx[k].value=t.textos?.[k]||""});
+tx.onsubmit=e=>{e.preventDefault();acao($("button",tx),async()=>{const textos={};Object.keys(DEF).forEach(k=>{if(tx[k].value.trim())textos[k]=tx[k].value.trim().slice(0,60)});await updateDoc(doc(db,"tenants",t.id),{textos});t.textos=textos;toast("Textos salvos.")})};
 const ff=$("#fid");ff.ativo.checked=!!t.fidelidade?.ativo;ff.meta.value=t.fidelidade?.meta||10;
 ff.onsubmit=e=>{e.preventDefault();acao($("button",ff),async()=>{const fidelidade={ativo:ff.ativo.checked,meta:Math.max(2,Math.round(+ff.meta.value||10))};await updateDoc(doc(db,"tenants",t.id),{fidelidade});t.fidelidade=fidelidade;toast("Fidelidade atualizada.")})};
 const D=$("#d"),L=$("#lista"),meta=t.fidelidade?.meta||10;D.value=hoje();
