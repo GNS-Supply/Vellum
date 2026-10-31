@@ -4,8 +4,8 @@ service cloud.firestore {
     function signed(){ return request.auth != null; }
     function isMaster(){ return signed() && exists(/databases/$(db)/documents/masters/$(request.auth.uid)); }
     function acc(){ return get(/databases/$(db)/documents/acessos/$(request.auth.uid)).data; }
-    function isStaff(t){ return signed() && exists(/databases/$(db)/documents/acessos/$(request.auth.uid)) && acc().tenantId == t; }
-    function isOwner(t){ return isStaff(t) && acc().papel == 'proprietario'; }
+    function isStaff(t){ return isMaster() || (signed() && exists(/databases/$(db)/documents/acessos/$(request.auth.uid)) && acc().tenantId == t); }
+    function isOwner(t){ return isMaster() || (isStaff(t) && acc().papel == 'proprietario'); }
     function T(t){ return /databases/$(db)/documents/tenants/$(t); }
 
     match /masters/{u}  { allow read: if signed() && request.auth.uid == u; allow write: if false; }
@@ -21,7 +21,7 @@ service cloud.firestore {
     match /tenants/{t} {
       allow read: if true;
       allow create, delete: if isMaster();
-      allow update: if isMaster() || (isOwner(t) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome','descricao','tema','fidelidade']));
+      allow update: if isMaster() || (isOwner(t) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fidelidade','textos']));
 
       match /unidades/{i}      { allow read: if true; allow write: if isOwner(t); }
       match /profissionais/{i} { allow read: if true; allow write: if isOwner(t); }
@@ -47,6 +47,7 @@ service cloud.firestore {
         allow update: if signed() && (isStaff(t) || (resource.data.clienteUid == request.auth.uid && request.resource.data.status == 'cancelado'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])));
       }
+      match /vitrine/{i} { allow read: if true; allow write: if isMaster(); }
       match /avaliacoes/{i} {
         allow read: if resource.data.publica == true || (signed() && (resource.data.cli == request.auth.uid || isStaff(t)));
         allow create: if signed() && request.resource.data.cli == request.auth.uid && request.resource.data.publica == false

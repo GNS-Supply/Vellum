@@ -14,9 +14,15 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 function toast(msg,tipo="ok"){const t=document.createElement("div");t.className="toast "+tipo;t.setAttribute("role",tipo==="err"?"alert":"status");t.textContent=msg;$("#toasts").append(t);setTimeout(()=>t.remove(),4500)}
 const ERROS={"auth/invalid-credential":"E-mail ou senha incorretos.","auth/email-already-in-use":"Este e-mail já tem conta. Entre ou recupere a senha.","auth/weak-password":"A senha precisa ter ao menos 6 caracteres.","auth/invalid-email":"E-mail inválido.","auth/popup-closed-by-user":"Login com Google cancelado.","auth/too-many-requests":"Muitas tentativas. Aguarde alguns minutos.","permission-denied":"Você não tem permissão para esta ação."};
 const msgErro=e=>ERROS[e.code]||e.message_pt||"Não foi possível concluir. Tente novamente.";
-async function acao(btn,fn){btn.setAttribute("aria-busy","true");try{await fn()}catch(e){console.error(e);toast(msgErro(e),"err")}finally{btn.removeAttribute("aria-busy")}}
+async function acao(btn,fn){if(new URLSearchParams(location.search).get("vis")){toast("Modo visualização: as ações ficam desativadas.","err");return}btn.setAttribute("aria-busy","true");try{await fn()}catch(e){console.error(e);toast(msgErro(e),"err")}finally{btn.removeAttribute("aria-busy")}}
 function cpfValido(v){const d=v.replace(/\D/g,"");if(d.length!==11||/^(\d)\1+$/.test(d))return false;const dv=n=>{let s=0;for(let i=0;i<n;i++)s+=d[i]*(n+1-i);return(s*10%11)%10};return dv(9)==d[9]&&dv(10)==d[10]}
 
+function inclinar(raiz){if(!matchMedia("(hover:hover)").matches)return;const al=e=>e.target.closest(".t3d>*,[data-e=tilt]>*");
+raiz.addEventListener("pointermove",e=>{const c=al(e);if(!c)return;const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;
+c.style.setProperty("--ry",(x*18).toFixed(1)+"deg");c.style.setProperty("--rx",(-y*18).toFixed(1)+"deg");c.style.setProperty("--px",(x*2).toFixed(2));c.style.setProperty("--py",(y*2).toFixed(2))});
+raiz.addEventListener("pointerout",e=>{const c=al(e);if(!c)return;["--rx","--ry","--px","--py"].forEach(k=>c.style.removeProperty(k))})}
+function coverflow(el){const f=()=>{if(!el.isConnected)return;const r=el.getBoundingClientRect(),m=r.left+r.width/2;[...el.children].forEach(k=>{const b=k.getBoundingClientRect(),o=(b.left+b.width/2-m)/b.width;k.style.setProperty("--o",o.toFixed(3));k.style.setProperty("--a",Math.min(Math.abs(o),2.5).toFixed(3))})};
+let w=0;el.addEventListener("scroll",()=>{if(!w)w=requestAnimationFrame(()=>{w=0;f()})},{passive:true});addEventListener("resize",f);f();setTimeout(f,350)}
 /* ==== 3. TEMA E ESTABELECIMENTO (multiloja via ?s=<id>) ==== */
 const slug=()=>{const s=new URLSearchParams(location.search).get("s");if(s)localStorage.setItem("slug",s);return s||localStorage.getItem("slug")};
 const href=p=>"#/"+p.replace(".html","");
@@ -31,13 +37,14 @@ function aplicarTema(t={}){const R=document.documentElement,S=(k,v)=>R.style.set
 S("--brand",c);S("--on-brand",lum(c)>.4?"#111":"#fff");S("--r",{reto:"2px",discreto:"8px",suave:"14px",redondo:"26px",capsula:"40px"}[t.estilo]||"14px");
 R.dataset.theme={escuro:"dark",argila:"argila",nevoa:"nevoa"}[t.tema]||"light";R.dataset.fundo=t.fundo||"";R.dataset.foto=t.fotoForma||"arco";R.dataset.efeito=t.fotoEfeito||"contorno";S("--serif",F[0]);S("--sans",F[1]);
 let l=document.getElementById("gf");if(!l){l=document.createElement("link");l.id="gf";l.rel="stylesheet";document.head.append(l)}const u="https://fonts.googleapis.com/css2?family="+F[2]+"&display=swap";if(l.href!==u)l.href=u;
-S("--bw",(t.borda??1)+"px");S("--op",(t.opac??100)+"%");S("--sh",["none","0 1px 0 var(--line)","0 12px 28px -18px rgb(0 0 0/.4)","0 26px 50px -22px rgb(0 0 0/.5)"][t.prof||0]);S("--bright",(t.brilho??100)+"%");S("--lg",(t.logoTam||36)+"px")}
+S("--bw",(t.borda??1)+"px");S("--op",(t.opac??100)+"%");S("--sh",["none","0 1px 0 var(--line)","0 12px 28px -18px rgb(0 0 0/.4)","0 26px 50px -22px rgb(0 0 0/.5)"][t.prof||0]);S("--bright",(t.brilho??100)+"%");S("--lg",(t.logoTam||36)+"px");S("--ov",(t.heroOverlay??40)/100)}
 const logoTag=(t,pos,cls="")=>{const x=t?.tema;return x?.logo&&pos.includes(x.logoPos||"lado")?`<img class="logo lf-${x.logoForma||"livre"} ${cls}" src="${x.logo}" alt="${esc(t.nome)}">`:""};
 async function carregarTenant(id){id=id||slug();if(!id)return null;const d=await getDoc(doc(db,"tenants",id));if(!d.exists())return null;
 const t={id:d.id,...d.data()};if(t.status==="suspenso")return{...t,suspenso:true};aplicarTema(t.tema);document.title=t.nome;pwa(t);return t}
 
 /* ==== 4. AUTENTICAÇÃO E PAPÉIS (papel vem de masters/ e acessos/, só o Master grava) ==== */
-let SES;const sessao=async()=>SES&&auth.currentUser?.uid===SES.u.uid?SES:(SES=await sessaoRaw());
+let SES;const sessaoBase=async()=>SES&&auth.currentUser?.uid===SES.u.uid?SES:(SES=await sessaoRaw());
+const sessao=async()=>{const s=await sessaoBase(),v=new URLSearchParams(location.search).get("vis");return s?.papel==="master"&&v&&slug()?{...s,papel:v==="loja"?"proprietario":"cliente",tenantId:v==="loja"?slug():undefined,previa:true}:s};
 const sessaoRaw=()=>new Promise(r=>{const un=onAuthStateChanged(auth,async u=>{un();r(u?{u,...await papelDe(u)}:null)})});
 async function papelDe(u){if((await getDoc(doc(db,"masters",u.uid))).exists())return{papel:"master"};
 const a=await getDoc(doc(db,"acessos",u.uid));return a.exists()?{papel:a.data().papel,tenantId:a.data().tenantId}:{papel:"cliente"}}
@@ -49,11 +56,11 @@ const entrarGoogle=async()=>{const c=await signInWithPopup(auth,new GoogleAuthPr
 async function auditar(ev,dados){await addDoc(collection(db,"auditoria"),{ev,dados,uid:auth.currentUser.uid,em:serverTimestamp()})}
 
 /* ==== 5. CABEÇALHO COMPARTILHADO ==== */
-function topo(t,s){const n=[];
+function topo(t,s){document.body.dataset.papel=s?.papel||"";const n=[];
 if(s?.papel==="cliente")n.push(["agendar.html","Agendar"],["cliente.html","Meu perfil"]);
 if(s?.papel==="proprietario")n.push(["agendamentos.html","Agenda"],["unidades.html","Unidades"],["profissionais.html","Profissionais"],["servicos.html","Serviços"],["avaliacoes.html","Avaliações"],["indicadores.html","Indicadores"]);
 if(s?.papel==="master")n.push(["master.html","Plataforma"],["personalizacao.html","Aparência"]);
-$("#topo").innerHTML=`<a class="marca ${t?.tema?.logoPos==='centro'?"col":""}" data-l="index.html">${logoTag(t,["lado","centro","so"])}${t?.tema?.logoPos==="so"&&t.tema.logo?"":esc(t?.nome||"Agenda")}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}">${l}</a>`).join("")}${s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
+$("#topo").innerHTML=`<a class="marca ${t?.tema?.logoPos==='centro'?"col":""}" data-l="index.html">${logoTag(t,["lado","centro","so"])}${t?.tema?.logoPos==="so"&&t.tema.logo?"":esc(t?.nome||"Agenda")}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}">${l}</a>`).join("")}${s?.previa?`<span class="tag">Prévia</span>`:s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
 $("#sair")?.addEventListener("click",async()=>{await signOut(auth);location.replace(href("index.html"))})}
 
 /* ==== 6. PÁGINAS (cada uma só roda quando <body data-page="..."> coincide) ==== */
@@ -71,13 +78,15 @@ const txt=`${logoTag(t,["hero"],"hero-logo")}<h1>${esc(t.nome)}</h1><p class="le
 if(L==="cinema")topoH=`<section class="cine"><div class="cine-img" ${capa?`style="background-image:url('${capa.img}')"`:""}></div><div class="cine-txt">${txt}</div></section>${fotos.length?`<section class="strip">${fotos.map(fig).join("")}</section>`:""}`;
 if(L==="mosaico")topoH=`<section class="sec"><div class="mos"><div class="mos-t rv">${txt}</div>${todas.slice(0,8).map(fig).join("")}</div></section>`;
 if(L==="editorial")topoH=`<section class="edi"><div class="edi-t">${txt}</div><div class="edi-f">${todas.map(fig).join("")||""}</div></section>`;
+if(L==="coverflow")topoH=`<section class="sec cf-t"><div class="cf-head">${txt}</div></section><div class="cflow gal3d">${todas.map(v=>fig(v).replace('class="rv"','')).join("")}</div>`;
+if(L==="revista")topoH=`<section class="rev">${todas.map((v,i)=>`<figure><img src="${v.img}" alt="${esc(v.legenda||v.tipo)}"><div class="rv-t">${i===0?txt:esc(v.legenda||"")}</div></figure>`).join("")||`<figure><div class="rv-t">${txt}</div></figure>`}</section>`;
 const eq=PR.filter(p=>p.ativo!==false),sv=SV.filter(v=>v.ativo!==false);
 $("#main").classList.add("solto");
 h.className="home";h.innerHTML=(tm.logo&&tm.logoPos==="marca"?`<img class="dagua" src="${tm.logo}" alt="">`:"")+topoH+
-(eq.length?`<section class="sec"><h2 class="rv">Nossa equipe</h2><div class="equipe">${eq.map(p=>`<div class="rv eq"><span class="arch">${p.foto?`<img src="${p.foto}" alt="">`:`<i>${esc((p.nome||"?")[0])}</i>`}</span><strong>${esc(p.nome)}</strong></div>`).join("")}</div></section>`:"")+
+(tm.homeEquipe==="sim"&&eq.length?`<section class="sec"><h2 class="rv">Nossa equipe</h2><div class="equipe ${tm.equipeModelo==="coverflow"?"cflow":""}" data-m="${tm.equipeModelo||"grade"}" data-t="${tm.equipeTam||"m"}" data-e="${tm.equipeEfeito||"tilt"}" data-foto="${tm.equipeForma||"arco"}">${eq.map(p=>`<div class="eq"><span class="arch">${p.foto?`<img src="${p.foto}" alt="">`:`<i>${esc((p.nome||"?")[0])}</i>`}</span><strong>${esc(p.nome)}</strong></div>`).join("")}</div></section>`:"")+
 (sv.length?`<section class="sec"><h2 class="rv">Serviços</h2><ul class="lista rv">${sv.map(v=>`<li><span>${esc(v.nome)}</span><strong>${brl(v.preco)}</strong></li>`).join("")}</ul></section>`:"")+
 (rv?`<section class="sec"><h2 class="rv">Quem já passou por aqui</h2>${rv}</section>`:"")+`<section class="sec fim rv"><h2>Pronto para o seu horário?</h2>${cta}</section>`;
-document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));revelar();
+document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));revelar();document.querySelectorAll(".cflow").forEach(coverflow);inclinar(h);
 const im=$(".cine-img");if(im&&!matchMedia("(prefers-reduced-motion:reduce)").matches){let w=0;const f=()=>{if(!im.isConnected)return removeEventListener("scroll",f);if(w)return;w=requestAnimationFrame(()=>{w=0;im.style.setProperty("--py",Math.min(scrollY,900)*.18+"px")})};addEventListener("scroll",f,{passive:true})}};
 
 P.login=async(t,s)=>{if(s)return irParaPainel();const f=$("#f");
@@ -100,20 +109,23 @@ acao($("button",f),async()=>{const v={};CAMPOS.forEach(k=>v[k]=f[k].value.trim()
 P.personalizacao=async(t,s)=>{if(!exigir(s,["master"]))return;const f=$("#f"),sel=$("#lojas"),q=await getDocs(collection(db,"tenants"));
 if(q.empty){$("#carga").remove();toast("Crie um estabelecimento primeiro, na tela Plataforma.","err");return}
 const L=new Map(q.docs.map(d=>[d.id,{id:d.id,...d.data()}]));sel.innerHTML=[...L.values()].map(x=>`<option value="${esc(x.id)}">${esc(x.nome)}</option>`).join("");let cur,logo="";
-const ler=()=>({cor:f.cor.value,tema:f.tema.value,estilo:f.estilo.value,fundo:f.fundo.value,fonte:f.fonte.value,borda:+f.borda.value,opac:+f.opac.value,prof:+f.prof.value,brilho:+f.brilho.value,logo,logoTam:+f.logoTam.value,logoPos:f.logoPos.value,logoForma:f.logoForma.value,layout:f.layout.value,fotoForma:f.fotoForma.value,fotoEfeito:f.fotoEfeito.value,dataModelo:f.dataModelo.value,horaModelo:f.horaModelo.value});
+const ler=()=>({cor:f.cor.value,tema:f.tema.value,estilo:f.estilo.value,fundo:f.fundo.value,fonte:f.fonte.value,borda:+f.borda.value,opac:+f.opac.value,prof:+f.prof.value,brilho:+f.brilho.value,logo,logoTam:+f.logoTam.value,logoPos:f.logoPos.value,logoForma:f.logoForma.value,layout:f.layout.value,fotoForma:f.fotoForma.value,fotoEfeito:f.fotoEfeito.value,dataModelo:f.dataModelo.value,horaModelo:f.horaModelo.value,fotoLayout:f.fotoLayout.value,heroOverlay:+f.heroOverlay.value,homeEquipe:f.homeEquipe.value,equipeModelo:f.equipeModelo.value,equipeForma:f.equipeForma.value,equipeTam:f.equipeTam.value,equipeEfeito:f.equipeEfeito.value});
 const pv=()=>{const tm=ler();aplicarTema(tm);topo({...cur,nome:f.nome.value,tema:tm},s);document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l))};
 async function galeria(){const g=await getDocs(collection(db,"tenants",cur.id,"vitrine"));$("#gal").innerHTML=g.empty?`<p class="mute">Nenhuma foto na vitrine ainda.</p>`:g.docs.map(d=>`<figure class="mini"><img src="${d.data().img}" alt=""><figcaption>${esc(d.data().tipo)}</figcaption><button type="button" data-x="${d.id}" aria-label="Remover foto">×</button></figure>`).join("")}
-const D={cor:"#23395b",tema:"claro",estilo:"suave",fundo:"",fonte:"classica",borda:1,opac:100,prof:0,brilho:100,logoTam:36,logoPos:"lado",logoForma:"livre",layout:"cinema",fotoForma:"arco",fotoEfeito:"contorno",dataModelo:"faixa",horaModelo:"pilulas"};
-const escolher=async()=>{cur=L.get(sel.value);const x={...D,...cur.tema};logo=x.logo||"";f.nome.value=cur.nome||"";f.descricao.value=cur.descricao||"";Object.keys(D).forEach(k=>f[k].value=x[k]);f.logo.value="";pv();await galeria()};
+const D={cor:"#23395b",tema:"claro",estilo:"suave",fundo:"",fonte:"classica",borda:1,opac:100,prof:0,brilho:100,logoTam:36,logoPos:"lado",logoForma:"livre",layout:"cinema",fotoForma:"arco",fotoEfeito:"contorno",dataModelo:"faixa",horaModelo:"pilulas",fotoLayout:"grade",heroOverlay:40,homeEquipe:"nao",equipeModelo:"grade",equipeForma:"arco",equipeTam:"m",equipeEfeito:"tilt"};
+const TELAS={cliente:[["index","Início"],["agendar","Agendar"]],loja:[["agendamentos","Agenda"],["unidades","Unidades"],["profissionais","Profissionais"],["servicos","Serviços"],["avaliacoes","Avaliações"],["indicadores","Indicadores"]]};
+const telas=()=>{$("#vtela").innerHTML=TELAS[$("#vmodo").value].map(([r,n])=>`<option value="${r}">${n}</option>`).join("")};
+const ir2=()=>{const i=$("#vif"),w=$("#vdisp").value;i.style.width=w==="100%"?"100%":w+"px";i.src=`${location.pathname}?s=${encodeURIComponent(cur.id)}&vis=${$("#vmodo").value}&_=${Date.now()}#/${$("#vtela").value}`};
+const escolher=async()=>{cur=L.get(sel.value);const x={...D,...cur.tema};logo=x.logo||"";f.nome.value=cur.nome||"";f.descricao.value=cur.descricao||"";Object.keys(D).forEach(k=>f[k].value=x[k]);f.logo.value="";pv();await galeria();ir2()};
 $("#amostra").innerHTML=["A","B","C"].map(n=>`<button type="button" class="pcard" data-k="p"><span class="arch"><i>${n}</i><em class="tick">✓</em></span><strong>Profissional ${n}</strong></button>`).join("");$("#amostra").onclick=e=>{const b=e.target.closest("button");if(b)marcar(b)};
-$("#carga").remove();f.hidden=false;await escolher();sel.onchange=escolher;
+$("#carga").remove();f.hidden=false;$("#prev").hidden=false;telas();await escolher();$("#vmodo").onchange=()=>{telas();ir2()};$("#vtela").onchange=$("#vdisp").onchange=ir2;sel.onchange=escolher;
 f.logo.onchange=async()=>{if(f.logo.files[0]){logo=await imgData(f.logo.files[0],320,true);pv();toast("Logo carregada. Salve para publicar.")}};
 f.oninput=e=>{if(!["logo","fotos","tipo","legenda"].includes(e.target.name))pv()};$("#descartar").onclick=escolher;
 $("#gal").onclick=e=>{const b=e.target.closest("[data-x]");if(b)acao(b,async()=>{await deleteDoc(doc(db,"tenants",cur.id,"vitrine",b.dataset.x));await galeria()})};
 $("#addfoto").onclick=e=>acao(e.currentTarget,async()=>{const fs=[...f.fotos.files];if(!fs.length)return toast("Escolha ao menos uma foto.","err");
 for(const x of fs)await addDoc(collection(db,"tenants",cur.id,"vitrine"),{img:await imgData(x,1000),legenda:f.legenda.value.trim(),tipo:f.tipo.value,ordem:Date.now()});f.fotos.value="";toast(`${fs.length} foto(s) adicionada(s).`);await galeria()});
 f.onsubmit=e=>{e.preventDefault();if(!f.nome.value.trim())return toast("Informe o nome do estabelecimento.","err");
-acao($("button[type=submit]",f),async()=>{const novo={nome:f.nome.value.trim(),descricao:f.descricao.value.trim(),tema:ler()};await updateDoc(doc(db,"tenants",cur.id),novo);await auditar("tenant.aparencia",{id:cur.id});Object.assign(cur,novo);pwa(cur);toast("Aparência salva.")})}};
+acao($("button[type=submit]",f),async()=>{const novo={nome:f.nome.value.trim(),descricao:f.descricao.value.trim(),tema:ler()};await updateDoc(doc(db,"tenants",cur.id),novo);await auditar("tenant.aparencia",{id:cur.id});Object.assign(cur,novo);pwa(cur);toast("Aparência salva.");ir2()})}};
 
 P.master=async(t,s)=>{if(!exigir(s,["master"]))return;const L=$("#lista"),sel=$("#sel");
 async function listar(){const q=await getDocs(collection(db,"tenants"));$("#carga")?.remove();
@@ -237,11 +249,11 @@ if(m==="trilho")return`<div class="trilho">${L.map(([o,i])=>b(o,i,"ht")).join(""
 return`<div class="slots">${L.map(([o,i])=>b(o,i,"chip")).join("")}</div>`};
 function draw(){const e=st.step,bar=`<ol class="steps">${NOMES.map((n,i)=>`<li class="${i<e?"feito":i===e?"atual":""}"><b>${i<e?"✓":i+1}</b><span>${n}</span></li>`).join("")}</ol>`;let p="";
 if(e===0)p=`<h2>${esc(X.tu||"Onde você quer ser atendido?")}</h2><div class="opts">${U.map(u=>opt("u",u.id,`<strong>${esc(u.nome)}</strong><small>${esc(u.endereco||"")}</small>`,st.u===u.id,st.u)).join("")}</div>`;
-if(e===1)p=`<h2>${esc(X.tp||"Com quem você prefere?")}</h2><div class="profs">${pc("","Sem preferência","",st.p==="")}${profs().map(x=>pc(x.id,x.nome,x.foto,st.p===x.id)).join("")}</div>`;
+if(e===1)p=`<h2>${esc(X.tp||"Com quem você prefere?")}</h2><div class="profs ${{tilt:"t3d",coverflow:"cflow",pilha:"deck"}[TM.fotoLayout]||""}">${pc("","Sem preferência","",st.p==="")}${profs().map(x=>pc(x.id,x.nome,x.foto,st.p===x.id)).join("")}</div>`;
 if(e===2)p=`<h2>${esc(X.ts||"Qual serviço você quer?")}</h2><div class="opts">${SV.filter(v=>v.ativo!==false).map(v=>opt("s",v.id,`<strong>${esc(v.nome)}</strong><small>${brl(v.preco)}</small>`,st.s===v.id,st.s)).join("")}</div>`;
 if(e===3)p=`<h2>${esc(X.td||"Qual dia fica melhor?")}</h2>`+dataHTML();
 if(e===4)p=`<h2>${esc(X.th||"Escolha o horário")}</h2><div id="hs"></div><div id="res"></div>`;
-A.innerHTML=bar+sumario()+`<div class="panel">${p}</div>`+(e>(unica?1:0)?`<button class="btn ghost voltar" data-back>Voltar</button>`:"");if(e===4)slots()}
+A.innerHTML=bar+sumario()+`<div class="panel">${p}</div>`+(e>(unica?1:0)?`<button class="btn ghost voltar" data-back>Voltar</button>`:"");const cf=$(".profs.cflow");if(cf){coverflow(cf);(cf.querySelector(".sel")||cf.children[Math.min(1,cf.children.length-1)])?.scrollIntoView({inline:"center",block:"nearest"})}if(e===4)slots()}
 async function slots(){const H=$("#hs"),un=U.find(x=>x.id===st.u),v=sv(),n=Math.ceil(v.duracao/30);H.innerHTML=`<div class="skel"></div>`;
 const q=[where("u","==",un.id),where("d","==",st.d)],[lk,cp]=await Promise.all([getDocs(query(C("locks"),...q)),getDocs(query(C("cap"),...q))]),Lk=new Set(lk.docs.map(d=>d.id)),K={};cp.docs.forEach(d=>K[d.id]=d.data().n);
 const ps=profs().filter(p=>st.p===""||p.id===st.p),out=[];
@@ -260,7 +272,7 @@ if(b.hasAttribute("data-back"))return ir(st.step-1);
 if(b.hasAttribute("data-novo")){Object.assign(st,{step:unica?1:0,p:null,s:"",d:"",sl:null});return draw()}
 const{k,id}=b.dataset;
 if(k==="u"){st.u=id;st.p=null;marcar(b);setTimeout(()=>ir(1),380)}
-if(k==="p"){st.p=id;marcar(b);setTimeout(()=>ir(2),380)}
+if(k==="p"){st.p=id;marcar(b);b.scrollIntoView({inline:"center",block:"nearest",behavior:"smooth"});setTimeout(()=>ir(2),380)}
 if(k==="s"){st.s=id;marcar(b);setTimeout(()=>ir(3),380)}
 if(k==="d"){st.d=id;marcar(b);setTimeout(()=>ir(4),380)}
 if(k==="h"){st.sl=st.lista[id];document.querySelectorAll("#hs [data-k=h]").forEach(x=>x.classList.toggle("sel",x===b));const v=sv();
@@ -269,7 +281,7 @@ if(b.id==="ok")acao(b,async()=>{const p=await reservar();A.innerHTML=`<div class
 if(matchMedia("(hover:hover)").matches){const alvo=e=>e.target.closest(".pcard")?.querySelector(".arch");
 A.onpointermove=e=>{const a=alvo(e);if(!a)return;const r=a.getBoundingClientRect();a.style.setProperty("--px",((e.clientX-r.left)/r.width-.5)*2);a.style.setProperty("--py",((e.clientY-r.top)/r.height-.5)*2)};
 A.onpointerout=e=>{const a=alvo(e);a?.style.removeProperty("--px");a?.style.removeProperty("--py")}}
-draw();await meus()};
+inclinar(A);draw();await meus()};
 
 /* ==== 6e. AGENDA DO PROPRIETÁRIO + FIDELIDADE ==== */
 P.agendamentos=async(t,s)=>{if(!exigir(s,["proprietario"]))return;
@@ -281,7 +293,7 @@ ff.onsubmit=e=>{e.preventDefault();acao($("button",ff),async()=>{const fidelidad
 const D=$("#d"),L=$("#lista"),meta=t.fidelidade?.meta||10;D.value=hoje();
 async function lista(){L.innerHTML=`<li><div class="skel"></div></li>`;const q=await getDocs(query(collection(db,"tenants",t.id,"agendamentos"),where("inicio",">=",D.value),where("inicio","<=",D.value+"T23:59")));
 const l=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.inicio.localeCompare(b.inicio));
-L.innerHTML=l.length?l.map(a=>`<li><span><strong>${a.inicio.slice(11)}</strong> · ${esc(a.clienteNome)}<br><span class="mute">${esc(a.servicoNome)} · ${esc(a.profNome)} · ${esc(a.unidadeNome)} · ${brl(a.preco)}</span></span><span><span class="tag ${["cancelado","ausente"].includes(a.status)?"off":""}">${a.status}</span>${a.status==="agendado"?` <button class="btn" data-a="concluido" data-id="${a.id}">Concluir</button> <button class="btn ghost" data-a="ausente" data-id="${a.id}">Faltou</button> <button class="btn ghost" data-a="cancelado" data-id="${a.id}">Cancelar</button>`:""}</span></li>`).join(""):`<li class="mute">Nenhum agendamento neste dia.</li>`}
+L.innerHTML=l.length?l.map(a=>`<li class="ag ${a.status}"><span><strong class="hora">${a.inicio.slice(11)}</strong> ${esc(a.clienteNome)}<br><span class="mute">${esc(a.servicoNome)} · ${esc(a.profNome)} · ${esc(a.unidadeNome)} · ${brl(a.preco)}</span></span><span><span class="tag ${["cancelado","ausente"].includes(a.status)?"off":""}">${a.status}</span>${a.status==="agendado"?` <button class="btn" data-a="concluido" data-id="${a.id}">Concluir</button> <button class="btn ghost" data-a="ausente" data-id="${a.id}">Faltou</button> <button class="btn ghost" data-a="cancelado" data-id="${a.id}">Cancelar</button>`:""}</span></li>`).join(""):`<li class="mute">Nenhum agendamento neste dia.</li>`}
 async function concluir(id){const ar=doc(db,"tenants",t.id,"agendamentos",id);return runTransaction(db,async tx=>{const a=await tx.get(ar);if(a.data().status!=="agendado")return false;
 const pr=(await tx.get(doc(db,"tenants",t.id,"profissionais",a.data().profId))).data()||{},fr=doc(db,"tenants",t.id,"fidelidade",a.data().clienteUid),f=(await tx.get(fr)).data()||{};let n=(f.n||0)+1,b=f.brindes||0,ganhou=false;if(t.fidelidade?.ativo&&n>=(t.fidelidade.meta||10)){n-=meta;b++;ganhou=true}
 tx.update(ar,{status:"concluido",comissaoPct:Number(pr.comissao||0)});tx.set(fr,{n,brindes:b});return ganhou})}
