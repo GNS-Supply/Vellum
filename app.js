@@ -21,7 +21,7 @@ function inclinar(raiz){if(!matchMedia("(hover:hover)").matches)return;const al=
 raiz.addEventListener("pointermove",e=>{const c=al(e);if(!c)return;const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;
 c.style.setProperty("--ry",(x*18).toFixed(1)+"deg");c.style.setProperty("--rx",(-y*18).toFixed(1)+"deg");c.style.setProperty("--px",(x*2).toFixed(2));c.style.setProperty("--py",(y*2).toFixed(2))});
 raiz.addEventListener("pointerout",e=>{const c=al(e);if(!c)return;["--rx","--ry","--px","--py"].forEach(k=>c.style.removeProperty(k))})}
-function coverflow(el){const f=()=>{if(!el.isConnected)return;const r=el.getBoundingClientRect(),m=r.left+r.width/2;[...el.children].forEach(k=>{const b=k.getBoundingClientRect(),o=(b.left+b.width/2-m)/b.width;k.style.setProperty("--o",o.toFixed(3));k.style.setProperty("--a",Math.min(Math.abs(o),2.5).toFixed(3))})};
+function coverflow(el){const f=()=>{if(!el.isConnected){removeEventListener("resize",f);return}const r=el.getBoundingClientRect(),m=r.left+r.width/2;[...el.children].forEach(k=>{const b=k.getBoundingClientRect(),o=(b.left+b.width/2-m)/b.width;k.style.setProperty("--o",o.toFixed(3));k.style.setProperty("--a",Math.min(Math.abs(o),2.5).toFixed(3))})};
 let w=0;el.addEventListener("scroll",()=>{if(!w)w=requestAnimationFrame(()=>{w=0;f()})},{passive:true});addEventListener("resize",f);f();setTimeout(f,350)}
 /* ==== 3. TEMA E ESTABELECIMENTO (multiloja via ?s=<id>) ==== */
 const slug=()=>{const s=new URLSearchParams(location.search).get("s");if(s)localStorage.setItem("slug",s);return s||localStorage.getItem("slug")};
@@ -39,8 +39,10 @@ R.dataset.theme={escuro:"dark",argila:"argila",nevoa:"nevoa"}[t.tema]||"light";R
 let l=document.getElementById("gf");if(!l){l=document.createElement("link");l.id="gf";l.rel="stylesheet";document.head.append(l)}const u="https://fonts.googleapis.com/css2?family="+F[2]+"&display=swap";if(l.href!==u)l.href=u;
 S("--bw",(t.borda??1)+"px");S("--op",(t.opac??100)+"%");S("--sh",["none","0 1px 0 var(--line)","0 12px 28px -18px rgb(0 0 0/.4)","0 26px 50px -22px rgb(0 0 0/.5)"][t.prof||0]);S("--bright",(t.brilho??100)+"%");S("--lg",(t.logoTam||36)+"px");S("--ov",(t.heroOverlay??40)/100)}
 const logoTag=(t,pos,cls="")=>{const x=t?.tema;return x?.logo&&pos.includes(x.logoPos||"lado")?`<img class="logo lf-${x.logoForma||"livre"} ${cls}" src="${x.logo}" alt="${esc(t.nome)}">`:""};
-async function carregarTenant(id){id=id||slug();if(!id)return null;const d=await getDoc(doc(db,"tenants",id));if(!d.exists())return null;
-const t={id:d.id,...d.data()};if(t.status==="suspenso")return{...t,suspenso:true};aplicarTema(t.tema);document.title=t.nome;pwa(t);return t}
+const TC=new Map();let OVR=null,TT=null,PING=0;
+async function carregarTenant(id){if(id===false)return null;id=id||slug();if(!id)return null;let c=TC.get(id);
+if(!c||Date.now()-c.em>6e4){const d=await getDoc(doc(db,"tenants",id));if(!d.exists())return null;c={em:Date.now(),t:{id:d.id,...d.data()}};TC.set(id,c)}
+const t=c.t;if(OVR&&OVR.id===id)Object.assign(t,{nome:OVR.nome,tema:OVR.tema});if(t.status==="suspenso")return{...t,suspenso:true};aplicarTema(t.tema);document.title=t.nome;pwa(t);return t}
 
 /* ==== 4. AUTENTICAÇÃO E PAPÉIS (papel vem de masters/ e acessos/, só o Master grava) ==== */
 let SES;const sessaoBase=async()=>SES&&auth.currentUser?.uid===SES.u.uid?SES:(SES=await sessaoRaw());
@@ -58,9 +60,9 @@ async function auditar(ev,dados){await addDoc(collection(db,"auditoria"),{ev,dad
 /* ==== 5. CABEÇALHO COMPARTILHADO ==== */
 function topo(t,s){document.body.dataset.papel=s?.papel||"";const n=[];
 if(s?.papel==="cliente")n.push(["agendar.html","Agendar"],["cliente.html","Meu perfil"]);
-if(s?.papel==="proprietario")n.push(["agendamentos.html","Agenda"],["unidades.html","Unidades"],["profissionais.html","Profissionais"],["servicos.html","Serviços"],["avaliacoes.html","Avaliações"],["indicadores.html","Indicadores"]);
+if(s?.papel==="proprietario")n.push(["agendamentos.html","Agenda"],["unidades.html","Unidades"],["profissionais.html","Profissionais"],["servicos.html","Serviços"],["bloqueios.html","Bloqueios"],["promocoes.html","Promoções"],["metas.html","Metas"],["avaliacoes.html","Avaliações"],["indicadores.html","Indicadores"],["ajustes.html","Ajustes"]);
 if(s?.papel==="master")n.push(["master.html","Plataforma"],["personalizacao.html","Aparência"]);
-$("#topo").innerHTML=`<a class="marca ${t?.tema?.logoPos==='centro'?"col":""}" data-l="index.html">${logoTag(t,["lado","centro","so"])}${t?.tema?.logoPos==="so"&&t.tema.logo?"":esc(t?.nome||"Agenda")}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}">${l}</a>`).join("")}${s?.previa?`<span class="tag">Prévia</span>`:s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
+$("#topo").innerHTML=`<a class="marca ${t?.tema?.logoPos==='centro'?"col":""}" data-l="index.html">${logoTag(t,["lado","centro","so"])}${t?.tema?.logoPos==="so"&&t.tema.logo?"":esc(t?.nome||"Agenda")}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}"${p.replace(".html","")===(location.hash.replace(/^#\/?/,"")||"index")?' aria-current="page"':""}>${l}</a>`).join("")}${s?.previa?`<span class="tag">Prévia</span>`:s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
 $("#sair")?.addEventListener("click",async()=>{await signOut(auth);location.replace(href("index.html"))})}
 
 /* ==== 6. PÁGINAS (cada uma só roda quando <body data-page="..."> coincide) ==== */
@@ -80,10 +82,12 @@ if(L==="mosaico")topoH=`<section class="sec"><div class="mos"><div class="mos-t 
 if(L==="editorial")topoH=`<section class="edi"><div class="edi-t">${txt}</div><div class="edi-f">${todas.map(fig).join("")||""}</div></section>`;
 if(L==="coverflow")topoH=`<section class="sec cf-t"><div class="cf-head">${txt}</div></section><div class="cflow gal3d">${todas.map(v=>fig(v).replace('class="rv"','')).join("")}</div>`;
 if(L==="revista")topoH=`<section class="rev">${todas.map((v,i)=>`<figure><img src="${v.img}" alt="${esc(v.legenda||v.tipo)}"><div class="rv-t">${i===0?txt:esc(v.legenda||"")}</div></figure>`).join("")||`<figure><div class="rv-t">${txt}</div></figure>`}</section>`;
+const pm=(await getDocs(query(collection(db,"tenants",t.id,"promocoes"),where("emailCliente","==",""),where("destaqueHome","==",true)))).docs.map(d=>d.data()).filter(p=>p.ativo!==false&&(!p.validade||p.validade>=hoje()));
+const promoH=pm.length?`<section class="sec"><h2 class="rv">Promoções</h2><div class="promo-grid">${pm.map(p=>`<div class="promo rv"><b>${p.tipo==="percent"?p.valor+"%":brl(p.valor)} OFF</b><strong>${esc(p.titulo)}</strong><span>${esc(p.descricao||"")}</span>${p.codigo?`<code>Cupom ${esc(p.codigo)}</code>`:""}${p.validade?`<small>Até ${esc(p.validade.split("-").reverse().join("/"))}</small>`:""}</div>`).join("")}</div></section>`:"";
 const eq=PR.filter(p=>p.ativo!==false),sv=SV.filter(v=>v.ativo!==false);
 $("#main").classList.add("solto");
 h.className="home";h.innerHTML=(tm.logo&&tm.logoPos==="marca"?`<img class="dagua" src="${tm.logo}" alt="">`:"")+topoH+
-(tm.homeEquipe==="sim"&&eq.length?`<section class="sec"><h2 class="rv">Nossa equipe</h2><div class="equipe ${tm.equipeModelo==="coverflow"?"cflow":""}" data-m="${tm.equipeModelo||"grade"}" data-t="${tm.equipeTam||"m"}" data-e="${tm.equipeEfeito||"tilt"}" data-foto="${tm.equipeForma||"arco"}">${eq.map(p=>`<div class="eq"><span class="arch">${p.foto?`<img src="${p.foto}" alt="">`:`<i>${esc((p.nome||"?")[0])}</i>`}</span><strong>${esc(p.nome)}</strong></div>`).join("")}</div></section>`:"")+
+promoH+(tm.homeEquipe==="sim"&&eq.length?`<section class="sec"><h2 class="rv">Nossa equipe</h2><div class="equipe ${tm.equipeModelo==="coverflow"?"cflow":""}" data-m="${tm.equipeModelo||"grade"}" data-t="${tm.equipeTam||"m"}" data-e="${tm.equipeEfeito||"tilt"}" data-foto="${tm.equipeForma||"arco"}">${eq.map(p=>`<div class="eq"><span class="arch">${p.foto?`<img src="${p.foto}" alt="">`:`<i>${esc((p.nome||"?")[0])}</i>`}</span><strong>${esc(p.nome)}</strong></div>`).join("")}</div></section>`:"")+
 (sv.length?`<section class="sec"><h2 class="rv">Serviços</h2><ul class="lista rv">${sv.map(v=>`<li><span>${esc(v.nome)}</span><strong>${brl(v.preco)}</strong></li>`).join("")}</ul></section>`:"")+
 (rv?`<section class="sec"><h2 class="rv">Quem já passou por aqui</h2>${rv}</section>`:"")+`<section class="sec fim rv"><h2>Pronto para o seu horário?</h2>${cta}</section>`;
 document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));revelar();document.querySelectorAll(".cflow").forEach(coverflow);inclinar(h);
@@ -110,25 +114,26 @@ P.personalizacao=async(t,s)=>{if(!exigir(s,["master"]))return;const f=$("#f"),se
 if(q.empty){$("#carga").remove();toast("Crie um estabelecimento primeiro, na tela Plataforma.","err");return}
 const L=new Map(q.docs.map(d=>[d.id,{id:d.id,...d.data()}]));sel.innerHTML=[...L.values()].map(x=>`<option value="${esc(x.id)}">${esc(x.nome)}</option>`).join("");let cur,logo="";
 const ler=()=>({cor:f.cor.value,tema:f.tema.value,estilo:f.estilo.value,fundo:f.fundo.value,fonte:f.fonte.value,borda:+f.borda.value,opac:+f.opac.value,prof:+f.prof.value,brilho:+f.brilho.value,logo,logoTam:+f.logoTam.value,logoPos:f.logoPos.value,logoForma:f.logoForma.value,layout:f.layout.value,fotoForma:f.fotoForma.value,fotoEfeito:f.fotoEfeito.value,dataModelo:f.dataModelo.value,horaModelo:f.horaModelo.value,fotoLayout:f.fotoLayout.value,heroOverlay:+f.heroOverlay.value,homeEquipe:f.homeEquipe.value,equipeModelo:f.equipeModelo.value,equipeForma:f.equipeForma.value,equipeTam:f.equipeTam.value,equipeEfeito:f.equipeEfeito.value});
-const pv=()=>{const tm=ler();aplicarTema(tm);topo({...cur,nome:f.nome.value,tema:tm},s);document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l))};
+const enviar=()=>{const w=$("#vif")?.contentWindow;if(w)w.postMessage({tema:ler(),nome:f.nome.value},location.origin)},pv=enviar;
+addEventListener("message",function m(e){if(!$("#vif")){removeEventListener("message",m);return}if(e.origin===location.origin&&e.data?.pronto)enviar()});
 async function galeria(){const g=await getDocs(collection(db,"tenants",cur.id,"vitrine"));$("#gal").innerHTML=g.empty?`<p class="mute">Nenhuma foto na vitrine ainda.</p>`:g.docs.map(d=>`<figure class="mini"><img src="${d.data().img}" alt=""><figcaption>${esc(d.data().tipo)}</figcaption><button type="button" data-x="${d.id}" aria-label="Remover foto">×</button></figure>`).join("")}
 const D={cor:"#23395b",tema:"claro",estilo:"suave",fundo:"",fonte:"classica",borda:1,opac:100,prof:0,brilho:100,logoTam:36,logoPos:"lado",logoForma:"livre",layout:"cinema",fotoForma:"arco",fotoEfeito:"contorno",dataModelo:"faixa",horaModelo:"pilulas",fotoLayout:"grade",heroOverlay:40,homeEquipe:"nao",equipeModelo:"grade",equipeForma:"arco",equipeTam:"m",equipeEfeito:"tilt"};
 const TELAS={cliente:[["index","Início"],["agendar","Agendar"]],loja:[["agendamentos","Agenda"],["unidades","Unidades"],["profissionais","Profissionais"],["servicos","Serviços"],["avaliacoes","Avaliações"],["indicadores","Indicadores"]]};
 const telas=()=>{$("#vtela").innerHTML=TELAS[$("#vmodo").value].map(([r,n])=>`<option value="${r}">${n}</option>`).join("")};
 const ir2=()=>{const i=$("#vif"),w=$("#vdisp").value;i.style.width=w==="100%"?"100%":w+"px";i.src=`${location.pathname}?s=${encodeURIComponent(cur.id)}&vis=${$("#vmodo").value}&_=${Date.now()}#/${$("#vtela").value}`;$("#vabrir").href=i.src.replace(/&_=\d+/,"")};
 const escolher=async()=>{cur=L.get(sel.value);const x={...D,...cur.tema};logo=x.logo||"";f.nome.value=cur.nome||"";f.descricao.value=cur.descricao||"";Object.keys(D).forEach(k=>f[k].value=x[k]);f.logo.value="";pv();await galeria();ir2()};
-$("#amostra").innerHTML=["A","B","C"].map(n=>`<button type="button" class="pcard" data-k="p"><span class="arch"><i>${n}</i><em class="tick">✓</em></span><strong>Profissional ${n}</strong></button>`).join("");$("#amostra").onclick=e=>{const b=e.target.closest("button");if(b)marcar(b)};
-$("#carga").remove();f.hidden=false;$("#prev").hidden=false;telas();await escolher();$("#vmodo").onchange=()=>{telas();ir2()};$("#vtela").onchange=$("#vdisp").onchange=ir2;
-const cheia=on=>{$("#prev").classList.toggle("cheia",on);document.body.classList.toggle("cheia",on)};
+$("#carga").remove();f.hidden=false;$("#prev").hidden=false;telas();$("#vmodo").onchange=()=>{telas();ir2()};$("#vtela").onchange=$("#vdisp").onchange=ir2;
+const cheia=on=>{$("#prev").classList.toggle("cheia",on);document.body.classList.toggle("cheia",on);$("#vsair").hidden=!on;$("#vcheia").hidden=on};
 $("#vcheia").onclick=()=>cheia(true);$("#vsair").onclick=()=>cheia(false);
-document.addEventListener("keydown",function k(e){if(!$("#prev")){document.removeEventListener("keydown",k);document.body.classList.remove("cheia");return}if(e.key==="Escape")cheia(false)});sel.onchange=escolher;
+document.addEventListener("keydown",function k(e){if(!$("#prev")){document.removeEventListener("keydown",k);document.body.classList.remove("cheia");return}if(e.key==="Escape")cheia(false)});
+await escolher();sel.onchange=escolher;
 f.logo.onchange=async()=>{if(f.logo.files[0]){logo=await imgData(f.logo.files[0],320,true);pv();toast("Logo carregada. Salve para publicar.")}};
 f.oninput=e=>{if(!["logo","fotos","tipo","legenda"].includes(e.target.name))pv()};$("#descartar").onclick=escolher;
 $("#gal").onclick=e=>{const b=e.target.closest("[data-x]");if(b)acao(b,async()=>{await deleteDoc(doc(db,"tenants",cur.id,"vitrine",b.dataset.x));await galeria()})};
 $("#addfoto").onclick=e=>acao(e.currentTarget,async()=>{const fs=[...f.fotos.files];if(!fs.length)return toast("Escolha ao menos uma foto.","err");
 for(const x of fs)await addDoc(collection(db,"tenants",cur.id,"vitrine"),{img:await imgData(x,1000),legenda:f.legenda.value.trim(),tipo:f.tipo.value,ordem:Date.now()});f.fotos.value="";toast(`${fs.length} foto(s) adicionada(s).`);await galeria()});
 f.onsubmit=e=>{e.preventDefault();if(!f.nome.value.trim())return toast("Informe o nome do estabelecimento.","err");
-acao($("button[type=submit]",f),async()=>{const novo={nome:f.nome.value.trim(),descricao:f.descricao.value.trim(),tema:ler()};await updateDoc(doc(db,"tenants",cur.id),novo);await auditar("tenant.aparencia",{id:cur.id});Object.assign(cur,novo);pwa(cur);toast("Aparência salva.");ir2()})}};
+acao($("button[type=submit]",f),async()=>{const novo={nome:f.nome.value.trim(),descricao:f.descricao.value.trim(),tema:ler()};await updateDoc(doc(db,"tenants",cur.id),novo);await auditar("tenant.aparencia",{id:cur.id});Object.assign(cur,novo);pwa(cur);TC.clear();toast("Aparência salva.");ir2()})}};
 
 P.master=async(t,s)=>{if(!exigir(s,["master"]))return;const L=$("#lista"),sel=$("#sel");
 async function listar(){const q=await getDocs(collection(db,"tenants"));$("#carga")?.remove();
@@ -160,16 +165,16 @@ L.onclick=e=>{const b=e.target.closest("button");if(b)acao(b,async()=>{await upd
 const carregarEcharts=()=>window.echarts?Promise.resolve():new Promise((ok,no)=>{const x=document.createElement("script");x.src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js";x.onload=ok;x.onerror=()=>no({message_pt:"Não foi possível carregar os gráficos. Verifique a conexão."});document.head.append(x)});
 P.indicadores=async(t,s)=>{if(!exigir(s,["proprietario"]))return;const de=$("#de"),ate=$("#ate");de.value=hoje().slice(0,8)+"01";ate.value=hoje();let L=[];
 async function carregar(){$("#kpis").innerHTML=`<div class="skel"></div>`;const q=await getDocs(query(collection(db,"tenants",t.id,"agendamentos"),where("inicio",">=",de.value),where("inicio","<=",ate.value+"T23:59")));L=q.docs.map(d=>d.data());
-const c=L.filter(a=>a.status==="concluido"),soma=x=>x.reduce((n,a)=>n+Number(a.preco),0);
+const c=L.filter(a=>a.status==="concluido"),soma=x=>x.reduce((n,a)=>n+(Number(a.preco)-Number(a.desconto||0)),0);
 if(!L.length){$("#kpis").innerHTML=`<p class="mute">Sem agendamentos neste período.</p>`;["c1","c2","prof"].forEach(i=>$("#"+i).innerHTML="");return}
 const k=(l,v)=>`<div class="card"><span class="mute">${l}</span><div class="kpi">${v}</div></div>`;
 $("#kpis").innerHTML=k("Agendamentos",L.length)+k("Concluídos",c.length)+k("Cancelados e faltas",L.filter(a=>["cancelado","ausente"].includes(a.status)).length)+k("A realizar",brl(soma(L.filter(a=>a.status==="agendado"))))+k("Realizado",brl(soma(c)));
 await carregarEcharts();const cor=getComputedStyle(document.documentElement).getPropertyValue("--brand").trim();
 const g=(id,o)=>{const e=echarts.getInstanceByDom($("#"+id))||echarts.init($("#"+id));e.setOption({color:[cor],grid:{left:48,right:12,top:40,bottom:30},tooltip:{trigger:"axis"},...o},true)};
-const por=(f)=>c.reduce((m,a)=>(m[f(a)]=(m[f(a)]||0)+Number(a.preco),m),{}),dia=por(a=>a.inicio.slice(0,10)),sv=por(a=>a.servicoNome),ks=Object.keys(dia).sort();
+const por=(f)=>c.reduce((m,a)=>(m[f(a)]=(m[f(a)]||0)+(Number(a.preco)-Number(a.desconto||0)),m),{}),dia=por(a=>a.inicio.slice(0,10)),sv=por(a=>a.servicoNome),ks=Object.keys(dia).sort();
 g("c1",{title:{text:"Realizado por dia",textStyle:{fontSize:14}},xAxis:{type:"category",data:ks},yAxis:{type:"value"},series:[{type:"line",smooth:true,data:ks.map(x=>dia[x])}]});
 g("c2",{title:{text:"Receita por serviço",textStyle:{fontSize:14}},xAxis:{type:"category",data:Object.keys(sv)},yAxis:{type:"value"},series:[{type:"bar",data:Object.values(sv)}]});
-const pf={};c.forEach(a=>{const p=pf[a.profNome]??={n:0,v:0,com:0};p.n++;p.v+=Number(a.preco);p.com+=Number(a.preco)*(a.comissaoPct||0)/100});
+const pf={};c.forEach(a=>{const p=pf[a.profNome]??={n:0,v:0,com:0};p.n++;p.v+=(Number(a.preco)-Number(a.desconto||0));p.com+=(Number(a.preco)-Number(a.desconto||0))*(a.comissaoPct||0)/100});
 $("#prof").innerHTML=Object.entries(pf).map(([n,p])=>`<li><span><strong>${esc(n)}</strong><br><span class="mute">${p.n} atendimentos · ${brl(p.v)}</span></span><strong>Comissão ${brl(p.com)}</strong></li>`).join("")||`<li class="mute">Nenhum atendimento concluído no período.</li>`}
 de.onchange=ate.onchange=()=>acao(de,carregar);
 $("#csv").onclick=()=>{if(!L.length)return toast("Não há dados no período.","err");const r=[["data","hora","cliente","servico","profissional","unidade","preco","comissao_pct","status"],...L.map(a=>[a.inicio.slice(0,10),a.inicio.slice(11),a.clienteNome,a.servicoNome,a.profNome,a.unidadeNome,a.preco,a.comissaoPct??"",a.status])];
@@ -187,15 +192,16 @@ const imgData=(f,max=480,png)=>new Promise((ok,no)=>{const i=new Image(),u=URL.c
 
 /* ==== 6c. CADASTROS DO PROPRIETÁRIO (unidades, profissionais, serviços) ==== */
 const CFG={unidades:{t:"Unidades",f:[["nome","Nome"],["endereco","Endereço"],["telefone","Telefone"],["capacidade","Atendimentos simultâneos","number"],["abre","Abre","time"],["fecha","Fecha","time"]]},
-profissionais:{t:"Profissionais",f:[["nome","Nome"],["unidadeId","Unidade","ref"],["comissao","Comissão (%)","number"],["foto","Foto","img"]]},
+profissionais:{t:"Profissionais",f:[["nome","Nome"],["unidadeId","Unidade","ref"],["comissao","Comissão (%)","number"],["fixo","Remuneração fixa mensal (R$)","number"],["foto","Foto","img"]]},
 servicos:{t:"Serviços",f:[["nome","Nome"],["preco","Preço (R$)","number"],["duracao","Duração (minutos)","number"]]}};
+const INFO={unidades:x=>`${x.abre} às ${x.fecha} · ${x.capacidade} atendimento(s) simultâneo(s)`,profissionais:x=>`Comissão de ${x.comissao||0}%`,servicos:x=>`${brl(x.preco)} · ${x.duracao} min`};
 async function crud(t,s,k){if(!exigir(s,["proprietario"]))return;const C=CFG[k],col=collection(db,"tenants",t.id,k),F=$("#f"),L=$("#lista");let ed=null,docs=new Map();
 const un=k==="profissionais"?(await getDocs(collection(db,"tenants",t.id,"unidades"))).docs:[];$("#carga").remove();$("#tit").textContent=C.t;
 const form=()=>{F.innerHTML=C.f.map(([n,l,ty])=>`<label>${l}`+(ty==="ref"?`<select name="${n}" required>${un.map(d=>`<option value="${d.id}">${esc(d.data().nome)}</option>`).join("")}</select>`:ty==="img"?`<input name="${n}" type="file" accept="image/*">`:`<input name="${n}" type="${ty||"text"}" ${ty==="number"?'step="any" min="0"':""} ${n==="nome"?"required":""}>`)+`</label>`).join("")+`<button class="btn">${ed?"Salvar alterações":"Adicionar"}</button> <button class="btn ghost" type="button" id="novo">Limpar</button>`;
 if(ed)C.f.forEach(([n,,ty])=>{if(ty!=="img")F[n].value=docs.get(ed)[n]??""});$("#novo").onclick=()=>{ed=null;form()}};
 async function lista(){const q=await getDocs(col);docs=new Map(q.docs.map(d=>[d.id,d.data()]));
-L.innerHTML=q.empty?`<li class="mute">Nada cadastrado ainda. Use o formulário para adicionar.</li>`:q.docs.map(d=>{const x=d.data();return`<li><span>${x.foto?`<img src="${x.foto}" alt="" width="40" height="40" style="border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:.6rem">`:""}<strong>${esc(x.nome)}</strong></span><span><button class="btn ghost" data-e="${d.id}">Editar</button> <button class="btn ghost" data-x="${d.id}">Excluir</button></span></li>`}).join("")}
-L.onclick=e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.e){ed=b.dataset.e;form();F.scrollIntoView({behavior:"smooth"})}
+L.innerHTML=q.empty?`<li class="mute">Nada cadastrado ainda. Use o formulário para adicionar.</li>`:q.docs.map(d=>{const x=d.data();return`<li><span>${x.foto?`<img src="${x.foto}" alt="" width="40" height="40" style="border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:.6rem">`:""}<strong>${esc(x.nome)}</strong>${x.ativo===false?' <span class="tag off">pausado</span>':""}<br><span class="mute">${INFO[k](x)}</span></span><span><button class="btn ghost" data-p="${d.id}">${x.ativo===false?"Ativar":"Pausar"}</button><button class="btn ghost" data-e="${d.id}">Editar</button> <button class="btn ghost" data-x="${d.id}">Excluir</button></span></li>`}).join("")}
+L.onclick=e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.p)return acao(b,async()=>{await updateDoc(doc(col,b.dataset.p),{ativo:docs.get(b.dataset.p).ativo===false});await lista()});if(b.dataset.e){ed=b.dataset.e;form();F.scrollIntoView({behavior:"smooth"})}
 else acao(b,async()=>{if(!confirm("Excluir este item? Agendamentos já feitos são mantidos."))return;await deleteDoc(doc(col,b.dataset.x));toast("Excluído.");await lista()})};
 F.onsubmit=e=>{e.preventDefault();acao($("button",F),async()=>{const v={};for(const[n,,ty]of C.f){if(ty==="img"){v[n]=F[n].files[0]?await imgData(F[n].files[0]):(ed?docs.get(ed)[n]||"":"")}else v[n]=ty==="number"?Number(F[n].value||0):F[n].value.trim()}
 if(k==="unidades"&&(!(v.capacidade>=1)||!v.abre||!v.fecha||v.abre>=v.fecha))return toast("Informe capacidade (mínimo 1) e um horário de abertura anterior ao de fechamento.","err");
@@ -216,10 +222,10 @@ cr.forEach((r,i)=>tx.set(r,{n:Math.max(0,(K[i].data()?.n||1)-1),u:x.unidadeId,d:
 P.agendar=async(t,s)=>{if(!exigir(s,["cliente"]))return;const A=$("#app");
 if(!t||t.suspenso){A.innerHTML=`<p class="lead">Escolha um estabelecimento na <a data-l="index.html">página inicial</a>.</p>`;return}
 const C=n=>collection(db,"tenants",t.id,n),ler=async n=>(await getDocs(C(n))).docs.map(d=>({id:d.id,...d.data()}));
-const[U,PR,SV]=await Promise.all([ler("unidades"),ler("profissionais"),ler("servicos")]);let ML=[];
+const[U0,PR,SV,BL]=await Promise.all([ler("unidades"),ler("profissionais"),ler("servicos"),ler("bloqueios")]);const U=U0.filter(u=>u.ativo!==false);let ML=[];
 const meus=async()=>{const q=await getDocs(query(C("agendamentos"),where("clienteUid","==",s.u.uid)));
 if(t.fidelidade?.ativo){const m=t.fidelidade.meta||10,f=(await getDoc(doc(C("fidelidade"),s.u.uid))).data()||{},n=Math.min(f.n||0,m);
-$("#fid").innerHTML=`<div class="card fid"><strong>Programa de fidelidade</strong><div class="barra" role="progressbar" aria-valuenow="${n}" aria-valuemax="${m}"><i style="width:${n/m*100}%"></i></div><span class="mute">${n} de ${m} atendimentos${f.brindes?` · <strong>${f.brindes} brinde(s) disponível(is)</strong>`:""}</span></div>`}else $("#fid").innerHTML="";
+$("#fid").innerHTML=`<div class="card fid"><strong>Cartão fidelidade${t.fidelidade.brinde?" · "+esc(t.fidelidade.brinde):""}</strong><div class="selos" role="img" aria-label="${n} de ${m} carimbos">${Array.from({length:m},(_,i)=>`<i class="${i<n?"on":""}"></i>`).join("")}</div><span class="mute">${n} de ${m} atendimentos${f.brindes?` · <strong>${f.brindes} brinde(s) disponível(is)</strong>`:""}</span></div>`}else $("#fid").innerHTML="";
 const l=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.inicio.localeCompare(a.inicio));ML=l;const av=new Set((await getDocs(query(C("avaliacoes"),where("cli","==",s.u.uid)))).docs.map(d=>d.id));
 $("#meus").innerHTML=l.length?l.map(a=>`<li><span><strong>${esc(a.servicoNome)}</strong> com ${esc(a.profNome)}<br><span class="mute">${esc(fmt(a.inicio))} · ${esc(a.unidadeNome)}</span></span><span><span class="tag ${a.status==="cancelado"?"off":""}">${a.status}</span>${a.status==="agendado"&&new Date(a.inicio)>new Date()?` <button class="btn ghost" data-c="${a.id}">Cancelar</button>`:""}${a.status==="concluido"&&!av.has(a.id)?` <button class="btn ghost" data-v="${a.id}">Avaliar</button>`:""}</span></li>`).join(""):`<li class="mute">Você ainda não tem agendamentos.</li>`};
 $("#meus").onclick=e=>{const v=e.target.closest("[data-v]");if(v)return acao(v,async()=>{const a=ML.find(x=>x.id===v.dataset.v),nota=Math.round(+prompt("Nota de 1 a 5 para o atendimento:"));if(!(nota>=1&&nota<=5))return toast("Informe uma nota de 1 a 5.","err");const txt=(prompt("Comentário (opcional):")||"").trim().slice(0,500);await setDoc(doc(C("avaliacoes"),a.id),{cli:s.u.uid,nome:(s.u.displayName||"Cliente").split(" ")[0],profId:a.profId,profNome:a.profNome,nota,txt,publica:false,em:serverTimestamp()});toast("Obrigado pela avaliação!");await meus()});
@@ -261,45 +267,103 @@ async function slots(){const H=$("#hs"),un=U.find(x=>x.id===st.u),v=sv(),n=Math.
 const q=[where("u","==",un.id),where("d","==",st.d)],[lk,cp]=await Promise.all([getDocs(query(C("locks"),...q)),getDocs(query(C("cap"),...q))]),Lk=new Set(lk.docs.map(d=>d.id)),K={};cp.docs.forEach(d=>K[d.id]=d.data().n);
 const ps=profs().filter(p=>st.p===""||p.id===st.p),out=[];
 for(let m=mins(un.abre);m+v.duracao<=mins(un.fecha);m+=30){if(new Date(`${st.d}T${hm(m)}`)<=new Date())continue;const us=[...Array(n)].map((_,i)=>hm(m+30*i));
-if(us.some(h=>(K[`${un.id}_${st.d}_${h}`]||0)>=un.capacidade))continue;const livres=ps.filter(p=>us.every(h=>!Lk.has(`${p.id}_${st.d}_${h}`)));if(livres.length)out.push({h:hm(m),us,livres})}
+if(us.some(h=>(K[`${un.id}_${st.d}_${h}`]||0)>=un.capacidade))continue;const livres=ps.filter(p=>us.every(h=>!Lk.has(`${p.id}_${st.d}_${h}`))&&!BL.some(b=>b.data===st.d&&(!b.unidadeId||b.unidadeId===un.id)&&(!b.profId||b.profId===p.id)&&(b.todoDia||(mins(b.de)<m+v.duracao&&mins(b.ate)>m))));if(livres.length)out.push({h:hm(m),us,livres})}
 st.lista=out;H.innerHTML=out.length?horasHTML(out):`<p class="mute">Sem horários livres neste dia. Volte e escolha outra data ou outro profissional.</p>`}
 async function reservar(){const un=U.find(x=>x.id===st.u),v=sv(),sl=st.sl;
 for(const p of sl.livres){try{await runTransaction(db,async tx=>{const lr=sl.us.map(h=>doc(C("locks"),`${p.id}_${st.d}_${h}`)),cr=sl.us.map(h=>doc(C("cap"),`${un.id}_${st.d}_${h}`));
 const L=await Promise.all(lr.map(r=>tx.get(r))),K=await Promise.all(cr.map(r=>tx.get(r)));
 if(L.some(x=>x.exists())||K.some(x=>(x.data()?.n||0)>=un.capacidade))throw Object.assign(new Error("conflito"),{conflito:1});
 lr.forEach(r=>tx.set(r,{cli:s.u.uid,u:un.id,d:st.d}));cr.forEach((r,i)=>tx.set(r,{n:(K[i].data()?.n||0)+1,u:un.id,d:st.d}));
-tx.set(doc(C("agendamentos")),{clienteUid:s.u.uid,clienteNome:s.u.displayName||s.u.email,unidadeId:un.id,unidadeNome:un.nome,profId:p.id,profNome:p.nome,servicoId:v.id,servicoNome:v.nome,preco:v.preco,dur:v.duracao,inicio:`${st.d}T${sl.h}`,status:"agendado",locks:lr.map(r=>r.id),caps:cr.map(r=>r.id),criadoEm:serverTimestamp()})});return p}
+tx.set(doc(C("agendamentos")),{clienteUid:s.u.uid,clienteNome:s.u.displayName||s.u.email,unidadeId:un.id,unidadeNome:un.nome,profId:p.id,profNome:p.nome,servicoId:v.id,servicoNome:v.nome,preco:v.preco,dur:v.duracao,inicio:`${st.d}T${sl.h}`,status:"agendado",cupom:st.cupom||"",desconto:st.desc||0,indicadoPor:(localStorage.getItem("ref")||"")===s.u.uid?"":localStorage.getItem("ref")||"",locks:lr.map(r=>r.id),caps:cr.map(r=>r.id),criadoEm:serverTimestamp()})});return p}
 catch(e){if(!e.conflito)throw e}}throw{message_pt:"Esse horário acabou de ser ocupado. Escolha outro."}}
 A.onclick=e=>{const b=e.target.closest("button");if(!b)return;
 if(b.hasAttribute("data-back"))return ir(st.step-1);
-if(b.hasAttribute("data-novo")){Object.assign(st,{step:unica?1:0,p:null,s:"",d:"",sl:null});return draw()}
+if(b.hasAttribute("data-novo")){Object.assign(st,{step:unica?1:0,p:null,s:"",d:"",sl:null,cupom:"",desc:0});return draw()}
 const{k,id}=b.dataset;
 if(k==="u"){st.u=id;st.p=null;marcar(b);setTimeout(()=>ir(1),380)}
 if(k==="p"){st.p=id;marcar(b);b.scrollIntoView({inline:"center",block:"nearest",behavior:"smooth"});setTimeout(()=>ir(2),380)}
-if(k==="s"){st.s=id;marcar(b);setTimeout(()=>ir(3),380)}
+if(k==="s"){st.s=id;st.cupom="";st.desc=0;marcar(b);setTimeout(()=>ir(3),380)}
 if(k==="d"){st.d=id;marcar(b);setTimeout(()=>ir(4),380)}
 if(k==="h"){st.sl=st.lista[id];document.querySelectorAll("#hs [data-k=h]").forEach(x=>x.classList.toggle("sel",x===b));const v=sv();
-$("#res").innerHTML=`<div class="card resumo"><p style="margin:0 0 .8rem"><strong>${esc(v.nome)}</strong> · ${esc(fmt(st.d+"T"+st.sl.h))}<br><span class="mute">${st.p===""?"Profissional disponível no horário":"Com "+esc(PR.find(x=>x.id===st.p)?.nome||"")} · ${brl(v.preco)}</span></p><button class="btn" id="ok">Confirmar agendamento</button></div>`;$("#res").scrollIntoView({behavior:"smooth",block:"nearest"})}
+$("#res").innerHTML=`<div class="card resumo"><p style="margin:0 0 .8rem"><strong>${esc(v.nome)}</strong> · ${esc(fmt(st.d+"T"+st.sl.h))}<br><span class="mute">${st.p===""?"Profissional disponível no horário":"Com "+esc(PR.find(x=>x.id===st.p)?.nome||"")} · <span id="pf">${brl(v.preco-(st.desc||0))}</span></span></p><div class="cup"><input id="cup" placeholder="Cupom de desconto" value="${esc(st.cupom||"")}" aria-label="Cupom"><button class="btn ghost sm" id="aplicar" type="button">Aplicar</button></div><p class="mute" id="cupmsg"></p><button class="btn" id="ok">Confirmar agendamento</button></div>`;$("#res").scrollIntoView({behavior:"smooth",block:"nearest"})}
+if(b.id==="aplicar")return acao(b,async()=>{const c=$("#cup").value.trim().toUpperCase().replace(/[^A-Z0-9]/g,"");if(!c)return;const d=await getDoc(doc(C("promocoes"),c)),p=d.data(),v=sv();
+if(!d.exists()||p.ativo===false||(p.validade&&p.validade<hoje())||(p.emailCliente&&p.emailCliente!==(s.u.email||"").toLowerCase())){st.cupom="";st.desc=0;$("#pf").textContent=brl(v.preco);$("#cupmsg").textContent="Cupom inválido, expirado ou de outro cliente.";return}
+st.cupom=c;st.desc=Math.min(v.preco,p.tipo==="percent"?v.preco*p.valor/100:p.valor);$("#pf").textContent=brl(v.preco-st.desc);$("#cupmsg").textContent="Cupom aplicado: -"+brl(st.desc)});
 if(b.id==="ok")acao(b,async()=>{const p=await reservar();A.innerHTML=`<div class="sucesso"><div class="ok">✓</div><h2>Agendado!</h2><p class="lead" style="margin:0 auto 1rem">${esc(p.nome)} · ${esc(fmt(st.d+"T"+st.sl.h))}</p><button class="btn ghost" data-novo>Fazer outro agendamento</button></div>`;await meus()})};
 if(matchMedia("(hover:hover)").matches){const alvo=e=>e.target.closest(".pcard")?.querySelector(".arch");
 A.onpointermove=e=>{const a=alvo(e);if(!a)return;const r=a.getBoundingClientRect();a.style.setProperty("--px",((e.clientX-r.left)/r.width-.5)*2);a.style.setProperty("--py",((e.clientY-r.top)/r.height-.5)*2)};
 A.onpointerout=e=>{const a=alvo(e);a?.style.removeProperty("--px");a?.style.removeProperty("--py")}}
-inclinar(A);draw();await meus()};
+const extras=async()=>{const a=await getDocs(C("avisos")),vistos=JSON.parse(localStorage.getItem("av_"+t.id)||"[]");
+$("#avisos").innerHTML=a.docs.filter(d=>!vistos.includes(d.id)).sort((x,y)=>(y.data().em?.seconds||0)-(x.data().em?.seconds||0)).slice(0,3).map(d=>`<div class="aviso"><div><strong>${esc(d.data().titulo)}</strong><p>${esc(d.data().texto)}</p></div><button class="ibtn" data-fx="${d.id}" aria-label="Dispensar aviso">×</button></div>`).join("");
+$("#indic").innerHTML=t.indicacao?.ativo?`<div class="card fid"><strong>Indique um amigo</strong><p class="mute" style="margin:.3rem 0 .6rem">Quando seu amigo concluir o primeiro atendimento, você ganha ${t.indicacao.bonus||1} carimbo(s) no cartão.</p><button class="btn ghost sm" id="ind" type="button">Copiar meu link</button></div>`:""};
+$("#avisos").onclick=e=>{const b=e.target.closest("[data-fx]");if(!b)return;const v=JSON.parse(localStorage.getItem("av_"+t.id)||"[]");v.push(b.dataset.fx);localStorage.setItem("av_"+t.id,JSON.stringify(v));b.closest(".aviso").remove()};
+$("#indic").onclick=e=>{if(e.target.closest("#ind"))navigator.clipboard?.writeText(`${location.origin}${location.pathname}?s=${t.id}&ref=${s.u.uid}`).then(()=>toast("Link copiado. Envie para seu amigo."),()=>toast("Não foi possível copiar o link.","err"))};
+inclinar(A);draw();await Promise.all([meus(),extras()])};
 
 /* ==== 6e. AGENDA DO PROPRIETÁRIO + FIDELIDADE ==== */
-P.agendamentos=async(t,s)=>{if(!exigir(s,["proprietario"]))return;
+P.ajustes=async(t,s)=>{if(!exigir(s,["proprietario"]))return;
 const tx=$("#txt"),DEF={tu:"Onde você quer ser atendido?",tp:"Com quem você prefere?",ts:"Qual serviço você quer?",td:"Qual dia fica melhor?",th:"Escolha o horário"};
 Object.keys(DEF).forEach(k=>{tx[k].placeholder=DEF[k];tx[k].value=t.textos?.[k]||""});
 tx.onsubmit=e=>{e.preventDefault();acao($("button",tx),async()=>{const textos={};Object.keys(DEF).forEach(k=>{if(tx[k].value.trim())textos[k]=tx[k].value.trim().slice(0,60)});await updateDoc(doc(db,"tenants",t.id),{textos});t.textos=textos;toast("Textos salvos.")})};
-const ff=$("#fid");ff.ativo.checked=!!t.fidelidade?.ativo;ff.meta.value=t.fidelidade?.meta||10;
-ff.onsubmit=e=>{e.preventDefault();acao($("button",ff),async()=>{const fidelidade={ativo:ff.ativo.checked,meta:Math.max(2,Math.round(+ff.meta.value||10))};await updateDoc(doc(db,"tenants",t.id),{fidelidade});t.fidelidade=fidelidade;toast("Fidelidade atualizada.")})};
-const D=$("#d"),L=$("#lista"),meta=t.fidelidade?.meta||10;D.value=hoje();
+const ff=$("#fid");ff.ativo.checked=!!t.fidelidade?.ativo;ff.meta.value=t.fidelidade?.meta||10;ff.brinde.value=t.fidelidade?.brinde||"";
+ff.onsubmit=e=>{e.preventDefault();acao($("button",ff),async()=>{const fidelidade={ativo:ff.ativo.checked,meta:Math.max(2,Math.round(+ff.meta.value||10)),brinde:ff.brinde.value.trim()};await updateDoc(doc(db,"tenants",t.id),{fidelidade});t.fidelidade=fidelidade;toast("Fidelidade atualizada.")})};
+const ii=$("#ind");ii.ativo.checked=!!t.indicacao?.ativo;ii.bonus.value=t.indicacao?.bonus||1;
+ii.onsubmit=e=>{e.preventDefault();acao($("button",ii),async()=>{const indicacao={ativo:ii.ativo.checked,bonus:Math.max(1,Math.round(+ii.bonus.value||1))};await updateDoc(doc(db,"tenants",t.id),{indicacao});t.indicacao=indicacao;toast("Indicações atualizadas.")})};
+};
+P.bloqueios=async(t,s)=>{if(!exigir(s,["proprietario"]))return;const C=n=>collection(db,"tenants",t.id,n),ler=async n=>(await getDocs(C(n))).docs.map(d=>({id:d.id,...d.data()})),F=$("#f"),L=$("#lista");
+const[U,PR]=await Promise.all([ler("unidades"),ler("profissionais")]);$("#carga").remove();
+F.unidadeId.innerHTML=`<option value="">Todas as unidades</option>`+U.map(u=>`<option value="${esc(u.id)}">${esc(u.nome)}</option>`).join("");
+F.profId.innerHTML=`<option value="">Todos os profissionais</option>`+PR.map(p=>`<option value="${esc(p.id)}">${esc(p.nome)}</option>`).join("");
+F.data.min=F.fim.min=hoje();F.todo.onchange=()=>{F.de.disabled=F.ate.disabled=F.todo.checked};F.todo.onchange();
+async function lista(){const b=(await ler("bloqueios")).filter(x=>x.data>=hoje()).sort((a,b)=>(a.data+(a.de||"")).localeCompare(b.data+(b.de||"")));
+L.innerHTML=b.length?b.map(x=>`<li><span><strong>${esc(new Date(x.data+"T12:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}))}</strong> · ${x.todoDia?"Dia inteiro":esc(x.de)+" às "+esc(x.ate)}<br><span class="mute">${esc(U.find(u=>u.id===x.unidadeId)?.nome||"Todas as unidades")} · ${esc(PR.find(p=>p.id===x.profId)?.nome||"Todos os profissionais")}</span></span><button class="btn ghost" data-x="${x.id}">Remover</button></li>`).join(""):`<li class="mute">Nenhum bloqueio futuro.</li>`}
+L.onclick=e=>{const b=e.target.closest("[data-x]");if(b)acao(b,async()=>{await deleteDoc(doc(C("bloqueios"),b.dataset.x));await lista()})};
+F.onsubmit=e=>{e.preventDefault();acao($("button",F),async()=>{const i=F.data.value,z=F.fim.value||i;if(!i||z<i)return toast("Informe uma data válida.","err");
+if(!F.todo.checked&&(!F.de.value||!F.ate.value||F.de.value>=F.ate.value))return toast("O horário inicial precisa ser anterior ao final.","err");
+const dias=[];for(let d=new Date(i+"T12:00");d<=new Date(z+"T12:00")&&dias.length<62;d.setDate(d.getDate()+1))dias.push(new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10));
+for(const data of dias)await addDoc(C("bloqueios"),{unidadeId:F.unidadeId.value,profId:F.profId.value,data,todoDia:F.todo.checked,de:F.todo.checked?"":F.de.value,ate:F.todo.checked?"":F.ate.value});
+toast(`${dias.length} bloqueio(s) criado(s).`);F.reset();F.todo.onchange();await lista()})};await lista()};
+
+P.promocoes=async(t,s)=>{if(!exigir(s,["proprietario"]))return;const C=n=>collection(db,"tenants",t.id,n),F=$("#f"),FA=$("#fa"),L=$("#lista"),LA=$("#lavisos"),M=new Map();
+async function lista(){const[p,a]=await Promise.all([getDocs(C("promocoes")),getDocs(C("avisos"))]);p.docs.forEach(d=>M.set(d.id,d.data()));
+L.innerHTML=p.empty?`<li class="mute">Nenhuma promoção criada.</li>`:p.docs.map(d=>{const x=d.data();return`<li><span><strong>${esc(x.titulo)}</strong> ${x.ativo===false?'<span class="tag off">pausada</span>':""}<br><span class="mute">${x.tipo==="percent"?x.valor+"%":brl(x.valor)} de desconto${x.codigo?" · cupom "+esc(x.codigo):""}${x.validade?" · até "+esc(x.validade):""}${x.emailCliente?" · só para "+esc(x.emailCliente):""}${x.destaqueHome?" · na tela inicial":""}</span></span><span><button class="btn ghost" data-p="${d.id}">${x.ativo===false?"Ativar":"Pausar"}</button><button class="btn ghost" data-x="${d.id}">Excluir</button></span></li>`}).join("");
+LA.innerHTML=a.empty?`<li class="mute">Nenhum aviso enviado.</li>`:a.docs.map(d=>`<li><span><strong>${esc(d.data().titulo)}</strong><br><span class="mute">${esc(d.data().texto)}</span></span><button class="btn ghost" data-xa="${d.id}">Remover</button></li>`).join("")}
+L.onclick=e=>{const b=e.target.closest("button");if(b)acao(b,async()=>{if(b.dataset.p)await updateDoc(doc(C("promocoes"),b.dataset.p),{ativo:M.get(b.dataset.p).ativo===false});else if(confirm("Excluir esta promoção?"))await deleteDoc(doc(C("promocoes"),b.dataset.x));await lista()})};
+LA.onclick=e=>{const b=e.target.closest("[data-xa]");if(b)acao(b,async()=>{await deleteDoc(doc(C("avisos"),b.dataset.xa));await lista()})};
+F.onsubmit=e=>{e.preventDefault();acao($("button",F),async()=>{const v=Number(F.valor.value),cod=F.codigo.value.toUpperCase().replace(/[^A-Z0-9]/g,"");
+if(!F.titulo.value.trim()||!(v>0)||(F.tipo.value==="percent"&&v>100))return toast("Informe título e um valor válido (percentual até 100).","err");
+const x={titulo:F.titulo.value.trim(),descricao:F.descricao.value.trim(),tipo:F.tipo.value,valor:v,codigo:cod,validade:F.validade.value,emailCliente:F.email.value.trim().toLowerCase(),destaqueHome:F.home.checked,ativo:true,criadoEm:serverTimestamp()};
+if(cod){if((await getDoc(doc(C("promocoes"),cod))).exists())return toast("Já existe um cupom com esse código.","err");await setDoc(doc(C("promocoes"),cod),x)}else await addDoc(C("promocoes"),x);
+toast("Promoção criada.");F.reset();await lista()})};
+FA.onsubmit=e=>{e.preventDefault();acao($("button",FA),async()=>{if(!FA.titulo.value.trim()||!FA.texto.value.trim())return toast("Preencha título e texto.","err");await addDoc(C("avisos"),{titulo:FA.titulo.value.trim().slice(0,80),texto:FA.texto.value.trim().slice(0,300),em:serverTimestamp()});toast("Aviso publicado para os clientes.");FA.reset();await lista()})};await lista()};
+
+P.metas=async(t,s)=>{if(!exigir(s,["proprietario"]))return;const C=n=>collection(db,"tenants",t.id,n),F=$("#f"),L=$("#lista"),M=$("#mes");
+const PR=(await getDocs(C("profissionais"))).docs.map(d=>({id:d.id,...d.data()}));F.profId.innerHTML=`<option value="">Equipe toda</option>`+PR.map(p=>`<option value="${esc(p.id)}">${esc(p.nome)}</option>`).join("");M.value=F.mes.value=hoje().slice(0,7);
+const bar=(l,p)=>`<div class="mbar"><span>${l}</span><div class="barra"><i style="width:${Math.min(100,p*100)}%"></i></div><b>${Math.round(p*100)}%</b></div>`;
+async function lista(){L.innerHTML=`<li><div class="skel"></div></li>`;const m=M.value,[ag,mt]=await Promise.all([getDocs(query(C("agendamentos"),where("inicio",">=",m+"-01"),where("inicio","<=",m+"-31T23:59"))),getDocs(query(C("metas"),where("mes","==",m)))]);
+const c=ag.docs.map(d=>d.data()).filter(a=>a.status==="concluido"),liq=a=>Number(a.preco)-Number(a.desconto||0),metas=mt.docs.map(d=>({id:d.id,...d.data()}));
+const dados=x=>{const k=x.profId?c.filter(a=>a.profId===x.profId):c,v=k.reduce((n,a)=>n+liq(a),0),at=k.length,pv=x.valor?v/x.valor:1,pa=x.atend?at/x.atend:1;return{v,at,pv,pa,ok:pv>=1&&pa>=1}};
+L.innerHTML=metas.length?metas.map(x=>{const r=dados(x);return`<li class="meta"><div><strong>${x.profId?esc(PR.find(p=>p.id===x.profId)?.nome||"Profissional"):"Meta da equipe"}</strong> ${r.ok?'<span class="tag">meta batida</span>':""}${x.valor?bar("Faturamento "+brl(r.v)+" de "+brl(x.valor),r.pv):""}${x.atend?bar("Atendimentos "+r.at+" de "+x.atend,r.pa):""}<span class="mute">${x.bonus?"Bônus de "+brl(x.bonus)+(x.profId?"":" por profissional")+" ao bater a meta":"Sem bônus"}</span></div><button class="btn ghost" data-x="${x.id}">Remover</button></li>`}).join(""):`<li class="mute">Nenhuma meta definida para este mês.</li>`;
+$("#rem").innerHTML=PR.map(p=>{const k=c.filter(a=>a.profId===p.id),com=k.reduce((n,a)=>n+liq(a)*(a.comissaoPct||0)/100,0),bon=metas.filter(x=>(!x.profId||x.profId===p.id)&&x.bonus&&dados(x).ok).reduce((n,x)=>n+Number(x.bonus),0),fix=Number(p.fixo||0);
+return`<li><span><strong>${esc(p.nome)}</strong><br><span class="mute">Fixo ${brl(fix)} · Comissão ${brl(com)} · Bônus ${brl(bon)}</span></span><strong>${brl(fix+com+bon)}</strong></li>`}).join("")||`<li class="mute">Cadastre profissionais para ver a remuneração.</li>`}
+M.onchange=lista;L.onclick=e=>{const b=e.target.closest("[data-x]");if(b)acao(b,async()=>{await deleteDoc(doc(C("metas"),b.dataset.x));await lista()})};
+F.onsubmit=e=>{e.preventDefault();acao($("button",F),async()=>{const v=Number(F.valor.value||0),a=Number(F.atend.value||0);if(!v&&!a)return toast("Defina a meta de faturamento ou de atendimentos.","err");
+await addDoc(C("metas"),{profId:F.profId.value,mes:F.mes.value,valor:v,atend:a,bonus:Number(F.bonus.value||0)});M.value=F.mes.value;toast("Meta criada.");await lista()})};await lista()};
+
+P.agendamentos=async(t,s)=>{if(!exigir(s,["proprietario"]))return;
+const D=$("#d"),L=$("#lista"),meta=t.fidelidade?.meta||10;D.value=hoje();const dx=d=>new Date(d+"T12:00"),soma=x=>x.reduce((n,a)=>n+(Number(a.preco)-Number(a.desconto||0)),0);
+const kp=l=>{const c=l.filter(a=>a.status==="concluido"),p=l.filter(a=>a.status==="agendado"),k=(r,v)=>`<div class="kpi-c"><span>${r}</span><b>${v}</b></div>`;
+$("#resumo").innerHTML=k("Agendados",p.length)+k("Concluídos",c.length)+k("A receber",brl(soma(p)))+k("Realizado",brl(soma(c)));
+$("#dtit").textContent=dx(D.value).toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})};
+const mover=n=>{const d=dx(D.value);d.setDate(d.getDate()+n);D.value=new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);lista()};
+$("#dprev").onclick=()=>mover(-1);$("#dnext").onclick=()=>mover(1);$("#dhoje").onclick=()=>{D.value=hoje();lista()};
+
 async function lista(){L.innerHTML=`<li><div class="skel"></div></li>`;const q=await getDocs(query(collection(db,"tenants",t.id,"agendamentos"),where("inicio",">=",D.value),where("inicio","<=",D.value+"T23:59")));
-const l=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.inicio.localeCompare(b.inicio));
+const l=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.inicio.localeCompare(b.inicio));kp(l);
 L.innerHTML=l.length?l.map(a=>`<li class="ag ${a.status}"><span><strong class="hora">${a.inicio.slice(11)}</strong> ${esc(a.clienteNome)}<br><span class="mute">${esc(a.servicoNome)} · ${esc(a.profNome)} · ${esc(a.unidadeNome)} · ${brl(a.preco)}</span></span><span><span class="tag ${["cancelado","ausente"].includes(a.status)?"off":""}">${a.status}</span>${a.status==="agendado"?` <button class="btn" data-a="concluido" data-id="${a.id}">Concluir</button> <button class="btn ghost" data-a="ausente" data-id="${a.id}">Faltou</button> <button class="btn ghost" data-a="cancelado" data-id="${a.id}">Cancelar</button>`:""}</span></li>`).join(""):`<li class="mute">Nenhum agendamento neste dia.</li>`}
 async function concluir(id){const ar=doc(db,"tenants",t.id,"agendamentos",id);return runTransaction(db,async tx=>{const a=await tx.get(ar);if(a.data().status!=="agendado")return false;
-const pr=(await tx.get(doc(db,"tenants",t.id,"profissionais",a.data().profId))).data()||{},fr=doc(db,"tenants",t.id,"fidelidade",a.data().clienteUid),f=(await tx.get(fr)).data()||{};let n=(f.n||0)+1,b=f.brindes||0,ganhou=false;if(t.fidelidade?.ativo&&n>=(t.fidelidade.meta||10)){n-=meta;b++;ganhou=true}
-tx.update(ar,{status:"concluido",comissaoPct:Number(pr.comissao||0)});tx.set(fr,{n,brindes:b});return ganhou})}
+const pr=(await tx.get(doc(db,"tenants",t.id,"profissionais",a.data().profId))).data()||{},fr=doc(db,"tenants",t.id,"fidelidade",a.data().clienteUid),f=(await tx.get(fr)).data()||{};const rf0=a.data().indicadoPor,cred=t.indicacao?.ativo&&rf0&&rf0!==a.data().clienteUid&&!f.visto,rr=cred?doc(db,"tenants",t.id,"fidelidade",rf0):null,rf=rr?((await tx.get(rr)).data()||{}):{};let n=(f.n||0)+1,b=f.brindes||0,ganhou=false;if(t.fidelidade?.ativo&&n>=(t.fidelidade.meta||10)){n-=meta;b++;ganhou=true}
+tx.update(ar,{status:"concluido",comissaoPct:Number(pr.comissao||0)});tx.set(fr,{n,brindes:b,visto:true});if(rr){let rn=(rf.n||0)+(t.indicacao.bonus||1),rb=rf.brindes||0;const mm=t.fidelidade?.meta||10;while(t.fidelidade?.ativo&&rn>=mm){rn-=mm;rb++}tx.set(rr,{...rf,n:rn,brindes:rb})}return ganhou})}
 D.onchange=lista;L.onclick=e=>{const b=e.target.closest("[data-a]");if(!b)return;acao(b,async()=>{const{a,id}=b.dataset;
 if(a==="concluido"){toast(await concluir(id)?"Concluído. O cliente ganhou um brinde!":"Atendimento concluído.")}else{await cancelar(t.id,id,a);toast("Atualizado.")}await lista()})};await lista()};
 
@@ -307,9 +371,12 @@ if(a==="concluido"){toast(await concluir(id)?"Concluído. O cliente ganhou um br
 let exec=0;
 const lim=(p,ms=10000)=>Promise.race([p,new Promise((_,no)=>setTimeout(()=>no({message_pt:"O servidor demorou a responder. Verifique a internet e a configuração do Firebase."}),ms))]);
 const aviso=(h,m)=>{if($("#boot"))$("#main").innerHTML=`<section class="hero"><h1>${h}</h1><p class="lead">${m}</p></section>`};
-async function rotear(){if(!CONFIG_OK)return aviso("Falta configurar o Firebase","Abra app.js e cole a configuração do seu projeto Firebase na constante FIREBASE, no topo do arquivo.");const id=++exec,r=location.hash.replace(/^#\/?/,"")||"index",pg=P[r]?r:"index";
-try{const s=await lim(sessao()),t=await lim(carregarTenant(s?.tenantId||null));if(id!==exec)return;if(!t)aplicarTema();
-await vt(()=>{$("#main").classList.remove("solto");$("#main").replaceChildren(document.getElementById("t-"+pg).content.cloneNode(true));document.body.dataset.page=pg;topo(t,s)});
-const ln=()=>document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));ln();await P[pg](t,s);ln();scrollTo(0,0)}
+async function rotear(manter){if(!CONFIG_OK)return aviso("Falta configurar o Firebase","Abra app.js e cole a configuração do seu projeto Firebase na constante FIREBASE, no topo do arquivo.");const id=++exec,r=location.hash.replace(/^#\/?/,"")||"index",pg=P[r]?r:"index";
+try{const s=await lim(sessao()),t=await lim(carregarTenant(s?.papel==="master"&&!s.previa&&!["index","agendar"].includes(pg)?false:s?.tenantId||null));if(id!==exec)return;TT=t;if(!t)aplicarTema();
+await (manter?(f=>f()):vt)(()=>{$("#main").classList.remove("solto");$("#main").replaceChildren(document.getElementById("t-"+pg).content.cloneNode(true));document.body.dataset.page=pg;topo(t,s)});
+const ln=()=>document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));ln();await P[pg](t,s);ln();if(!manter){scrollTo(0,0);$("#main").focus({preventScroll:true})}if(!PING&&parent!==window&&new URLSearchParams(location.search).get("vis")){PING=1;parent.postMessage({pronto:1},location.origin)}}
 catch(e){console.error(e);aviso("Não foi possível carregar",esc(msgErro(e)));toast(msgErro(e),"err")}}
-addEventListener("hashchange",rotear);rotear();
+addEventListener("hashchange",()=>rotear());
+let deb;addEventListener("message",e=>{if(e.origin!==location.origin||!e.data?.tema||!TT||!new URLSearchParams(location.search).get("vis"))return;OVR={id:TT.id,nome:e.data.nome,tema:e.data.tema};clearTimeout(deb);deb=setTimeout(()=>rotear(true),250)});
+{const rf=new URLSearchParams(location.search).get("ref");if(rf)localStorage.setItem("ref",rf)}
+rotear();

@@ -21,7 +21,7 @@ service cloud.firestore {
     match /tenants/{t} {
       allow read: if true;
       allow create, delete: if isMaster();
-      allow update: if isMaster() || (isOwner(t) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fidelidade','textos']));
+      allow update: if isMaster() || (isOwner(t) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fidelidade','textos','indicacao']));
 
       match /unidades/{i}      { allow read: if true; allow write: if isOwner(t); }
       match /profissionais/{i} { allow read: if true; allow write: if isOwner(t); }
@@ -43,11 +43,21 @@ service cloud.firestore {
       match /agendamentos/{i} {
         allow read: if signed() && (resource.data.clienteUid == request.auth.uid || isStaff(t));
         allow create: if signed() && request.resource.data.clienteUid == request.auth.uid && request.resource.data.status == 'agendado'
-          && request.resource.data.preco == get(/databases/$(db)/documents/tenants/$(t)/servicos/$(request.resource.data.servicoId)).data.preco;
+          && request.resource.data.preco == get(/databases/$(db)/documents/tenants/$(t)/servicos/$(request.resource.data.servicoId)).data.preco
+          && (request.resource.data.get('cupom','') != '' || request.resource.data.get('desconto',0) == 0)
+          && (request.resource.data.get('cupom','') == '' || (get(/databases/$(db)/documents/tenants/$(t)/promocoes/$(request.resource.data.cupom)).data.ativo == true && request.resource.data.desconto <= request.resource.data.preco));
         allow update: if signed() && (isStaff(t) || (resource.data.clienteUid == request.auth.uid && request.resource.data.status == 'cancelado'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])));
       }
       match /vitrine/{i} { allow read: if true; allow write: if isMaster(); }
+      match /bloqueios/{i} { allow read: if true; allow write: if isOwner(t); }
+      match /avisos/{i}    { allow read: if signed(); allow write: if isOwner(t); }
+      match /metas/{i}     { allow read, write: if isOwner(t); }
+      match /promocoes/{i} {
+        allow get: if true;
+        allow list: if isStaff(t) || resource.data.emailCliente == "" || (signed() && resource.data.emailCliente == request.auth.token.email);
+        allow write: if isOwner(t);
+      }
       match /avaliacoes/{i} {
         allow read: if resource.data.publica == true || (signed() && (resource.data.cli == request.auth.uid || isStaff(t)));
         allow create: if signed() && request.resource.data.cli == request.auth.uid && request.resource.data.publica == false

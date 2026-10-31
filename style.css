@@ -209,10 +209,41 @@ html[data-efeito=foco] .pcard.sel .arch img{transform:translate(calc(var(--px,0)
 @media(max-width:1000px){.pers{grid-template-columns:1fr}.prev{position:static}}
 @media(max-width:700px){body[data-papel=proprietario] .topo nav{position:fixed;inset:auto 0 0 0;z-index:5;gap:0;flex-wrap:nowrap;padding:.4rem;overflow-x:auto;background:var(--surf);border-top:var(--bw) solid var(--line)}body[data-papel=proprietario] .topo nav a{padding:.6rem .8rem;white-space:nowrap}body[data-papel=proprietario] .wrap{padding-bottom:5.5rem}}
 
-/* ==== 16. MODO DE VISUALIZAÇÃO EM TELA CHEIA ==== */
-.pbtn{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:var(--s2)}#vsair{display:none}body.cheia{overflow:hidden}
-.prev.cheia{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;gap:.6rem;padding:.8rem 1rem;border-radius:0;border:0;background:var(--bg);overflow:hidden}
-.prev.cheia h2,.prev.cheia>p{display:none}.prev.cheia .pbtn{margin:0}.prev.cheia #vsair{display:inline-flex}.prev.cheia #vcheia{display:none}
-.prev.cheia .cols{grid-template-columns:repeat(3,minmax(0,210px));margin:0}.prev.cheia label{margin:0}
+/* ==== 16. PRÉ-VISUALIZAÇÃO ==== */
+.pbar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:.6rem}.ptit{font:1.1rem var(--serif);margin-right:auto}.pctl,.pbt{display:flex;gap:.4rem}.pbar select{width:auto;margin:0;padding:.35rem .5rem;font-size:.82rem}
+.ibtn{display:inline-flex;align-items:center;justify-content:center;gap:.3rem;min-width:34px;height:34px;padding:0 .5rem;font:inherit;font-size:.82rem;color:var(--ink);background:transparent;border:var(--bw) solid var(--line);border-radius:calc(var(--r)*.6);cursor:pointer;text-decoration:none;transition:border-color .2s,color .2s,transform .15s}
+.ibtn:hover{border-color:var(--brand);color:var(--brand)}.ibtn:active{transform:scale(.94)}
+body.cheia{overflow:hidden}.prev.cheia{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;padding:.7rem .9rem;border-radius:0;border:0;background:var(--bg)}
 .prev.cheia .frame{flex:1;min-height:0}.prev.cheia #vif{height:100%;min-height:0}
-@media(max-width:700px){.prev.cheia .cols{grid-template-columns:1fr 1fr 1fr}.prev.cheia .cols label{font-size:.7rem}}
+
+/* ==== 17. REVISÃO DE ALINHAMENTO, ESPAÇAMENTO E TELAS DA LOJA ==== */
+body{min-height:100dvh}.wrap>h1,.wrap>.pg-head{margin-bottom:var(--s3)}
+body:not([data-page=index]) h1{font-size:clamp(1.7rem,4.2vw,2.4rem);line-height:1.15}.auth h1{font-size:1.9rem}
+.topo{flex-wrap:wrap;row-gap:.5rem}.topo nav{margin-left:auto;gap:.4rem 1.1rem}.marca{display:inline-flex;align-items:center}
+.topo nav a:not(.btn){padding:.3rem 0;border-bottom:2px solid transparent;transition:border-color .2s,color .2s}.topo nav a[aria-current]{border-bottom-color:var(--brand);font-weight:600}
+.card h2:not(:first-child){margin-top:var(--s3)}.card>p.mute{margin:0 0 var(--s2)}form>.btn{margin-top:var(--s1)}
+.cols{align-items:start}.cols>label{margin-bottom:0}
+label:has(input[type=checkbox]){display:flex;align-items:flex-start;gap:.6rem;color:var(--ink)}label input[type=checkbox]{margin:.25rem 0 0;flex:none}
+textarea{resize:vertical;min-height:4.5rem}input[type=file]{padding:.5rem}input[type=range]{margin-top:.7rem}
+.lista li{flex-wrap:wrap}.lista li:last-child{border-bottom:0;padding-bottom:0}.lista.card li:first-child,.card .lista li:first-child{padding-top:0}
+.lista li>span:last-child{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;justify-content:flex-end}.lista .btn{padding:.4rem .8rem;font-size:.82rem}.tag{display:inline-block;vertical-align:middle}
+.pg-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--s2)}.pg-head h1{margin:0}#dtit::first-letter{text-transform:uppercase}
+.dnav{display:flex;align-items:center;gap:.4rem}.dnav input{width:auto;margin:0;padding:.45rem .6rem}.btn.sm{padding:.45rem .9rem;font-size:.85rem}
+.kpis{display:grid;gap:var(--s1);grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin:var(--s2) 0 var(--s3)}
+.kpi-c{display:grid;gap:.15rem;padding:.9rem 1rem;border:var(--bw) solid var(--line);border-radius:var(--r);background:color-mix(in srgb,var(--surf) var(--op),transparent)}.kpi-c span{font-size:.78rem;color:var(--mute)}.kpi-c b{font:400 1.5rem/1.1 var(--serif)}
+.agenda .hora{display:inline-block;min-width:3.4rem}
+.crud{display:grid;gap:var(--s3);grid-template-columns:minmax(280px,380px) minmax(0,1fr);align-items:start}.crud>form{position:sticky;top:1rem}
+#kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.graf{height:260px}.lnk strong{display:block;margin-bottom:.2rem}.frame{margin-top:.4rem}
+#toasts{bottom:max(var(--s2),env(safe-area-inset-bottom))}
+@media(max-width:860px){.crud{grid-template-columns:1fr}.crud>form{position:static}}
+@media(max-width:700px){body[data-papel=proprietario] #toasts{bottom:4.6rem}.dnav{width:100%;justify-content:space-between}.lista li>span:last-child{justify-content:flex-start}.card{padding:var(--s2)}.steps li span{font-size:.65rem}.topo nav{margin-left:0}}
+
+/* ==== 18. PROMOÇÕES, CARTÃO FIDELIDADE, AVISOS E METAS ==== */
+.promo-grid{display:grid;gap:var(--s2);grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.promo{display:grid;gap:.4rem;align-content:start;padding:var(--s3);background:var(--brand);color:var(--on-brand);border-radius:var(--r)}.promo b{font:400 2.8rem/1 var(--serif)}.promo small{opacity:.8}
+.promo code{justify-self:start;padding:.2rem .7rem;border:1px dashed currentColor;border-radius:99px;font-size:.8rem}
+.selos{display:grid;grid-template-columns:repeat(auto-fill,minmax(26px,1fr));gap:6px;margin:.7rem 0;max-width:340px}.selos i{aspect-ratio:1;border:1.5px solid var(--line);border-radius:50%;transition:background .5s var(--ease),border-color .5s}.selos i.on{background:var(--brand);border-color:var(--brand)}
+.aviso{display:flex;gap:.8rem;align-items:flex-start;justify-content:space-between;padding:.9rem 1rem;margin-bottom:.6rem;border:var(--bw) solid var(--brand);border-radius:var(--r)}.aviso p{margin:.2rem 0 0}
+.cup{display:flex;gap:.5rem;margin:.8rem 0 .2rem}.cup input{margin:0}.cup .btn{white-space:nowrap}
+.pr{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}.mbar{display:grid;grid-template-columns:1fr auto;gap:.2rem .6rem;margin:.5rem 0}.mbar span{grid-column:1/-1;font-size:.85rem}.mbar .barra{margin:0;align-self:center}
+.meta{align-items:flex-start}.meta>div{flex:1;min-width:240px}.fid .btn{margin-top:.2rem}
