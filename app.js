@@ -49,10 +49,13 @@ let SES;const sessaoBase=async()=>SES&&auth.currentUser?.uid===SES.u.uid?SES:(SE
 const sessao=async()=>{const s=await sessaoBase(),v=new URLSearchParams(location.search).get("vis");return s?.papel==="master"&&v&&slug()?{...s,papel:v==="loja"?"proprietario":"cliente",tenantId:v==="loja"?slug():undefined,previa:true}:s};
 const sessaoRaw=()=>new Promise(r=>{const un=onAuthStateChanged(auth,async u=>{un();r(u?{u,...await papelDe(u)}:null)})});
 async function papelDe(u){if((await getDoc(doc(db,"masters",u.uid))).exists())return{papel:"master"};
-const a=await getDoc(doc(db,"acessos",u.uid));return a.exists()?{papel:a.data().papel,tenantId:a.data().tenantId}:{papel:"cliente"}}
+let a=await getDoc(doc(db,"acessos",u.uid));
+if(!a.exists()&&u.email){const cv=await getDoc(doc(db,"convites",u.email.toLowerCase()));if(cv.exists()){const c=cv.data();
+await setDoc(doc(db,"acessos",u.uid),{tenantId:c.tenantId,papel:c.papel,unidades:c.unidades||[],permissoes:c.permissoes||[],email:u.email.toLowerCase(),nome:u.displayName||""});await deleteDoc(cv.ref);a=await getDoc(doc(db,"acessos",u.uid))}}
+return a.exists()?{papel:a.data().papel,tenantId:a.data().tenantId,unidades:a.data().unidades||[],permissoes:a.data().permissoes||[]}:{papel:"cliente"}}
 const destino=s=>s.papel==="master"?"master.html":s.papel==="cliente"?"agendar.html":"agendamentos.html";
 async function irParaPainel(){const u=auth.currentUser;location.replace(href(destino({...await papelDe(u)})))}
-function exigir(s,papeis){if(!s){location.replace(href("login.html"));return false}if(!papeis.includes(s.papel)){location.replace(href(destino(s)));return false}return true}
+function exigir(s,papeis,perm){if(!s){location.replace(href("login.html"));return false}if(!papeis.includes(s.papel)||(s.papel==="equipe"&&perm&&perm!=="agendamentos"&&!(s.permissoes||[]).includes(perm))){location.replace(href(destino(s)));return false}return true}
 async function garantirPerfil(u,extra={}){const r=doc(db,"users",u.uid);if(!(await getDoc(r)).exists())await setDoc(r,{nome:extra.nome||u.displayName||"",email:u.email,criadoEm:serverTimestamp(),...(extra.lgpdEm?{lgpdEm:serverTimestamp()}:{})})}
 const entrarGoogle=async()=>{const c=await signInWithPopup(auth,new GoogleAuthProvider());await garantirPerfil(c.user,{lgpdEm:1})};
 async function auditar(ev,dados){await addDoc(collection(db,"auditoria"),{ev,dados,uid:auth.currentUser.uid,em:serverTimestamp()})}
@@ -60,8 +63,10 @@ async function auditar(ev,dados){await addDoc(collection(db,"auditoria"),{ev,dad
 /* ==== 5. CABEÇALHO COMPARTILHADO ==== */
 function topo(t,s){document.body.dataset.papel=s?.papel||"";const n=[];
 if(s?.papel==="cliente")n.push(["agendar.html","Agendar"],["cliente.html","Meu perfil"]);
-if(s?.papel==="proprietario")n.push(["agendamentos.html","Agenda"],["unidades.html","Unidades"],["profissionais.html","Profissionais"],["servicos.html","Serviços"],["bloqueios.html","Bloqueios"],["promocoes.html","Promoções"],["metas.html","Metas"],["avaliacoes.html","Avaliações"],["indicadores.html","Indicadores"],["ajustes.html","Ajustes"]);
-if(s?.papel==="master")n.push(["master.html","Plataforma"],["personalizacao.html","Aparência"]);
+const NAV=[["agendamentos.html","Agenda",1],["bloqueios.html","Bloqueios",1],["unidades.html","Unidades",0],["profissionais.html","Profissionais",1],["servicos.html","Serviços",1],["promocoes.html","Promoções",0],["metas.html","Metas",0],["avaliacoes.html","Avaliações",1],["indicadores.html","Indicadores",0],["equipe.html","Equipe",0],["ajustes.html","Ajustes",0]];
+if(s?.papel==="proprietario")NAV.forEach(([r,l])=>n.push([r,l]));
+if(s?.papel==="equipe")NAV.forEach(([r,l,a])=>{const k=r.replace(".html","");if(a&&(k==="agendamentos"||(s.permissoes||[]).includes(k)))n.push([r,l])});
+if(s?.papel==="master")n.push(["master.html","Plataforma"],["personalizacao.html","Aparência"],["equipe.html","Equipe"]);
 $("#topo").innerHTML=`<a class="marca ${t?.tema?.logoPos==='centro'?"col":""}" data-l="index.html">${logoTag(t,["lado","centro","so"])}${t?.tema?.logoPos==="so"&&t.tema.logo?"":esc(t?.nome||"Agenda")}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}"${p.replace(".html","")===(location.hash.replace(/^#\/?/,"")||"index")?' aria-current="page"':""}>${l}</a>`).join("")}${s?.previa?`<span class="tag">Prévia</span>`:s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
 $("#sair")?.addEventListener("click",async()=>{await signOut(auth);location.replace(href("index.html"))})}
 
@@ -155,7 +160,7 @@ await listar()};
 /* ==== 6f. AVALIAÇÕES ==== */
 async function rev(t){const q=await getDocs(query(collection(db,"tenants",t.id,"avaliacoes"),where("publica","==",true),limit(6)));
 return q.empty?"":`<div class="grid" style="width:100%;margin-top:2rem">${q.docs.map(d=>{const a=d.data();return`<figure class="card" style="margin:0"><strong>${"★".repeat(a.nota)}</strong><p>${esc(a.txt)}</p><figcaption class="mute">${esc(a.nome)} · ${esc(a.profNome)}</figcaption></figure>`}).join("")}</div>`}
-P.avaliacoes=async(t,s)=>{if(!exigir(s,["proprietario"]))return;const L=$("#lista");
+P.avaliacoes=async(t,s)=>{if(!exigir(s,["proprietario","equipe"],"avaliacoes"))return;const L=$("#lista");
 async function lista(){const q=await getDocs(collection(db,"tenants",t.id,"avaliacoes")),l=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.em?.seconds||0)-(a.em?.seconds||0));
 L.innerHTML=l.length?l.map(a=>`<li><span><strong>${"★".repeat(a.nota)}${"☆".repeat(5-a.nota)}</strong> ${esc(a.nome)} · ${esc(a.profNome)}<br><span class="mute">${esc(a.txt||"Sem comentário")}</span></span><button class="btn ghost" data-id="${a.id}" data-p="${!a.publica}">${a.publica?"Ocultar":"Publicar"}</button></li>`).join(""):`<li class="mute">Nenhuma avaliação recebida ainda.</li>`;
 $("#media").textContent=l.length?`Média geral ${(l.reduce((n,a)=>n+a.nota,0)/l.length).toFixed(1)} em ${l.length} avaliações. Só as publicadas aparecem na página inicial.`:""}
@@ -195,7 +200,7 @@ const CFG={unidades:{t:"Unidades",f:[["nome","Nome"],["endereco","Endereço"],["
 profissionais:{t:"Profissionais",f:[["nome","Nome"],["unidadeId","Unidade","ref"],["comissao","Comissão (%)","number"],["fixo","Remuneração fixa mensal (R$)","number"],["foto","Foto","img"]]},
 servicos:{t:"Serviços",f:[["nome","Nome"],["preco","Preço (R$)","number"],["duracao","Duração (minutos)","number"]]}};
 const INFO={unidades:x=>`${x.abre} às ${x.fecha} · ${x.capacidade} atendimento(s) simultâneo(s)`,profissionais:x=>`Comissão de ${x.comissao||0}%`,servicos:x=>`${brl(x.preco)} · ${x.duracao} min`};
-async function crud(t,s,k){if(!exigir(s,["proprietario"]))return;const C=CFG[k],col=collection(db,"tenants",t.id,k),F=$("#f"),L=$("#lista");let ed=null,docs=new Map();
+async function crud(t,s,k){if(!exigir(s,k==="unidades"?["proprietario"]:["proprietario","equipe"],k))return;const C=CFG[k],col=collection(db,"tenants",t.id,k),F=$("#f"),L=$("#lista");let ed=null,docs=new Map();
 const un=k==="profissionais"?(await getDocs(collection(db,"tenants",t.id,"unidades"))).docs:[];$("#carga").remove();$("#tit").textContent=C.t;
 const form=()=>{F.innerHTML=C.f.map(([n,l,ty])=>`<label>${l}`+(ty==="ref"?`<select name="${n}" required>${un.map(d=>`<option value="${d.id}">${esc(d.data().nome)}</option>`).join("")}</select>`:ty==="img"?`<input name="${n}" type="file" accept="image/*">`:`<input name="${n}" type="${ty||"text"}" ${ty==="number"?'step="any" min="0"':""} ${n==="nome"?"required":""}>`)+`</label>`).join("")+`<button class="btn">${ed?"Salvar alterações":"Adicionar"}</button> <button class="btn ghost" type="button" id="novo">Limpar</button>`;
 if(ed)C.f.forEach(([n,,ty])=>{if(ty!=="img")F[n].value=docs.get(ed)[n]??""});$("#novo").onclick=()=>{ed=null;form()}};
@@ -310,12 +315,12 @@ ff.onsubmit=e=>{e.preventDefault();acao($("button",ff),async()=>{const fidelidad
 const ii=$("#ind");ii.ativo.checked=!!t.indicacao?.ativo;ii.bonus.value=t.indicacao?.bonus||1;
 ii.onsubmit=e=>{e.preventDefault();acao($("button",ii),async()=>{const indicacao={ativo:ii.ativo.checked,bonus:Math.max(1,Math.round(+ii.bonus.value||1))};await updateDoc(doc(db,"tenants",t.id),{indicacao});t.indicacao=indicacao;toast("Indicações atualizadas.")})};
 };
-P.bloqueios=async(t,s)=>{if(!exigir(s,["proprietario"]))return;const C=n=>collection(db,"tenants",t.id,n),ler=async n=>(await getDocs(C(n))).docs.map(d=>({id:d.id,...d.data()})),F=$("#f"),L=$("#lista");
-const[U,PR]=await Promise.all([ler("unidades"),ler("profissionais")]);$("#carga").remove();
-F.unidadeId.innerHTML=`<option value="">Todas as unidades</option>`+U.map(u=>`<option value="${esc(u.id)}">${esc(u.nome)}</option>`).join("");
+P.bloqueios=async(t,s)=>{if(!exigir(s,["proprietario","equipe"],"bloqueios"))return;const C=n=>collection(db,"tenants",t.id,n),ler=async n=>(await getDocs(C(n))).docs.map(d=>({id:d.id,...d.data()})),F=$("#f"),L=$("#lista");
+const[U1,PR]=await Promise.all([ler("unidades"),ler("profissionais")]),eq=s.papel==="equipe",U=eq?U1.filter(u=>(s.unidades||[]).includes(u.id)):U1;$("#carga").remove();
+F.unidadeId.innerHTML=(eq?"":`<option value="">Todas as unidades</option>`)+U.map(u=>`<option value="${esc(u.id)}">${esc(u.nome)}</option>`).join("");
 F.profId.innerHTML=`<option value="">Todos os profissionais</option>`+PR.map(p=>`<option value="${esc(p.id)}">${esc(p.nome)}</option>`).join("");
 F.data.min=F.fim.min=hoje();F.todo.onchange=()=>{F.de.disabled=F.ate.disabled=F.todo.checked};F.todo.onchange();
-async function lista(){const b=(await ler("bloqueios")).filter(x=>x.data>=hoje()).sort((a,b)=>(a.data+(a.de||"")).localeCompare(b.data+(b.de||"")));
+async function lista(){const b=(await ler("bloqueios")).filter(x=>x.data>=hoje()&&(!eq||U.some(u=>u.id===x.unidadeId))).sort((a,b)=>(a.data+(a.de||"")).localeCompare(b.data+(b.de||"")));
 L.innerHTML=b.length?b.map(x=>`<li><span><strong>${esc(new Date(x.data+"T12:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}))}</strong> · ${x.todoDia?"Dia inteiro":esc(x.de)+" às "+esc(x.ate)}<br><span class="mute">${esc(U.find(u=>u.id===x.unidadeId)?.nome||"Todas as unidades")} · ${esc(PR.find(p=>p.id===x.profId)?.nome||"Todos os profissionais")}</span></span><button class="btn ghost" data-x="${x.id}">Remover</button></li>`).join(""):`<li class="mute">Nenhum bloqueio futuro.</li>`}
 L.onclick=e=>{const b=e.target.closest("[data-x]");if(b)acao(b,async()=>{await deleteDoc(doc(C("bloqueios"),b.dataset.x));await lista()})};
 F.onsubmit=e=>{e.preventDefault();acao($("button",F),async()=>{const i=F.data.value,z=F.fim.value||i;if(!i||z<i)return toast("Informe uma data válida.","err");
@@ -340,7 +345,7 @@ FA.onsubmit=e=>{e.preventDefault();acao($("button",FA),async()=>{if(!FA.titulo.v
 P.metas=async(t,s)=>{if(!exigir(s,["proprietario"]))return;const C=n=>collection(db,"tenants",t.id,n),F=$("#f"),L=$("#lista"),M=$("#mes");
 const PR=(await getDocs(C("profissionais"))).docs.map(d=>({id:d.id,...d.data()}));F.profId.innerHTML=`<option value="">Equipe toda</option>`+PR.map(p=>`<option value="${esc(p.id)}">${esc(p.nome)}</option>`).join("");M.value=F.mes.value=hoje().slice(0,7);
 const bar=(l,p)=>`<div class="mbar"><span>${l}</span><div class="barra"><i style="width:${Math.min(100,p*100)}%"></i></div><b>${Math.round(p*100)}%</b></div>`;
-async function lista(){L.innerHTML=`<li><div class="skel"></div></li>`;const m=M.value,[ag,mt]=await Promise.all([getDocs(query(C("agendamentos"),where("inicio",">=",m+"-01"),where("inicio","<=",m+"-31T23:59"))),getDocs(query(C("metas"),where("mes","==",m)))]);
+async function lista(){if(!un){L.innerHTML=`<li class="mute">Selecione uma unidade para ver os agendamentos.</li>`;$("#resumo").innerHTML="";return}L.innerHTML=`<li><div class="skel"></div></li>`;const m=M.value,[ag,mt]=await Promise.all([getDocs(query(C("agendamentos"),where("inicio",">=",m+"-01"),where("inicio","<=",m+"-31T23:59"))),getDocs(query(C("metas"),where("mes","==",m)))]);
 const c=ag.docs.map(d=>d.data()).filter(a=>a.status==="concluido"),liq=a=>Number(a.preco)-Number(a.desconto||0),metas=mt.docs.map(d=>({id:d.id,...d.data()}));
 const dados=x=>{const k=x.profId?c.filter(a=>a.profId===x.profId):c,v=k.reduce((n,a)=>n+liq(a),0),at=k.length,pv=x.valor?v/x.valor:1,pa=x.atend?at/x.atend:1;return{v,at,pv,pa,ok:pv>=1&&pa>=1}};
 L.innerHTML=metas.length?metas.map(x=>{const r=dados(x);return`<li class="meta"><div><strong>${x.profId?esc(PR.find(p=>p.id===x.profId)?.nome||"Profissional"):"Meta da equipe"}</strong> ${r.ok?'<span class="tag">meta batida</span>':""}${x.valor?bar("Faturamento "+brl(r.v)+" de "+brl(x.valor),r.pv):""}${x.atend?bar("Atendimentos "+r.at+" de "+x.atend,r.pa):""}<span class="mute">${x.bonus?"Bônus de "+brl(x.bonus)+(x.profId?"":" por profissional")+" ao bater a meta":"Sem bônus"}</span></div><button class="btn ghost" data-x="${x.id}">Remover</button></li>`}).join(""):`<li class="mute">Nenhuma meta definida para este mês.</li>`;
@@ -350,15 +355,45 @@ M.onchange=lista;L.onclick=e=>{const b=e.target.closest("[data-x]");if(b)acao(b,
 F.onsubmit=e=>{e.preventDefault();acao($("button",F),async()=>{const v=Number(F.valor.value||0),a=Number(F.atend.value||0);if(!v&&!a)return toast("Defina a meta de faturamento ou de atendimentos.","err");
 await addDoc(C("metas"),{profId:F.profId.value,mes:F.mes.value,valor:v,atend:a,bonus:Number(F.bonus.value||0)});M.value=F.mes.value;toast("Meta criada.");await lista()})};await lista()};
 
-P.agendamentos=async(t,s)=>{if(!exigir(s,["proprietario"]))return;
-const D=$("#d"),L=$("#lista"),meta=t.fidelidade?.meta||10;D.value=hoje();const dx=d=>new Date(d+"T12:00"),soma=x=>x.reduce((n,a)=>n+(Number(a.preco)-Number(a.desconto||0)),0);
+const PERMS=[["agendamentos","Agenda"],["bloqueios","Bloqueios"],["avaliacoes","Avaliações"],["profissionais","Profissionais"],["servicos","Serviços"]];
+const permHTML=(U,x={})=>`<div class="pw"${x.papel==="proprietario"?" hidden":""}><fieldset class="perm"><legend>Unidades</legend>${U.map(u=>`<label class="ck"><input type="checkbox" name="u" value="${esc(u.id)}"${(x.unidades||[]).includes(u.id)?" checked":""}>${esc(u.nome)}</label>`).join("")||'<span class="mute">Cadastre unidades primeiro.</span>'}</fieldset><fieldset class="perm"><legend>Pode acessar</legend>${PERMS.map(([k,l])=>`<label class="ck"><input type="checkbox" name="p" value="${k}"${k==="agendamentos"?" checked disabled":(x.permissoes||[]).includes(k)?" checked":""}>${l}</label>`).join("")}</fieldset></div>`;
+const lerPerm=f=>({unidades:[...f.querySelectorAll("[name=u]:checked")].map(x=>x.value),permissoes:["agendamentos",...[...f.querySelectorAll("[name=p]:checked")].map(x=>x.value)]});
+P.equipe=async(t,s)=>{if(!exigir(s,["proprietario","master"]))return;const adm=s.papel==="master",L=$("#lista"),LC=$("#lconv"),FC=$("#fc");let U=[],ac=[];
+if(adm){const q=await getDocs(collection(db,"tenants"));$("#lj").innerHTML=q.docs.map(d=>`<option value="${esc(d.id)}">${esc(d.data().nome)}</option>`).join("");$("#ljw").hidden=false}
+const tid=()=>adm?$("#lj").value:s.tenantId,admins=()=>ac.filter(x=>x.papel==="proprietario");
+async function carregar(){const T=tid();if(!T){L.innerHTML=`<li class="mute">Crie um estabelecimento primeiro.</li>`;return}
+const[a,c,u]=await Promise.all([getDocs(query(collection(db,"acessos"),where("tenantId","==",T))),getDocs(query(collection(db,"convites"),where("tenantId","==",T))),getDocs(collection(db,"tenants",T,"unidades"))]);
+U=u.docs.map(d=>({id:d.id,...d.data()}));ac=a.docs.map(d=>({id:d.id,...d.data()}));
+L.innerHTML=ac.length?ac.map(x=>`<li class="us"><form data-u="${x.id}"><div class="us-h"><span><strong>${esc(x.nome||x.email||"Usuário")}</strong>${x.id===s.u.uid?" (você)":""}<br><span class="mute">${esc(x.email||"")}</span></span><select name="papel" aria-label="Tipo de usuário"><option value="equipe"${x.papel==="equipe"?" selected":""}>Usuário da loja</option><option value="proprietario"${x.papel==="proprietario"?" selected":""}>Administrador</option></select></div>${permHTML(U,x)}<div class="us-a"><button class="btn sm">Salvar</button><button class="btn ghost sm" type="button" data-rm="${x.id}">Remover acesso</button></div></form></li>`).join(""):`<li class="mute">Nenhum usuário ainda.</li>`;
+LC.innerHTML=c.empty?`<li class="mute">Nenhum convite pendente.</li>`:c.docs.map(d=>`<li><span><strong>${esc(d.data().email)}</strong><br><span class="mute">${d.data().papel==="proprietario"?"Administrador":"Usuário da loja"}</span></span><button class="btn ghost sm" data-cv="${esc(d.id)}">Cancelar</button></li>`).join("");
+$("#fcu").innerHTML=permHTML(U,{papel:FC.papel.value})}
+if(adm)$("#lj").onchange=carregar;
+FC.papel.onchange=()=>{$("#fcu .pw").hidden=FC.papel.value==="proprietario"};
+L.onchange=e=>{if(e.target.name==="papel")e.target.closest("form").querySelector(".pw").hidden=e.target.value==="proprietario"};
+L.onsubmit=e=>{e.preventDefault();const f=e.target,id=f.dataset.u,papel=f.papel.value,{unidades,permissoes}=lerPerm(f);
+if(papel==="equipe"&&!unidades.length)return toast("Escolha ao menos uma unidade.","err");
+if(papel==="equipe"&&ac.find(x=>x.id===id)?.papel==="proprietario"&&admins().length<2)return toast("A loja precisa ter ao menos um administrador.","err");
+acao($("button",f),async()=>{await updateDoc(doc(db,"acessos",id),{papel,unidades:papel==="equipe"?unidades:[],permissoes:papel==="equipe"?permissoes:[]});toast("Permissões atualizadas.");await carregar()})};
+L.onclick=e=>{const b=e.target.closest("[data-rm]");if(!b)return;const id=b.dataset.rm;if(ac.find(x=>x.id===id)?.papel==="proprietario"&&admins().length<2)return toast("A loja precisa ter ao menos um administrador.","err");
+acao(b,async()=>{if(!confirm("Remover o acesso desta pessoa?"))return;await deleteDoc(doc(db,"acessos",id));await carregar()})};
+LC.onclick=e=>{const b=e.target.closest("[data-cv]");if(b)acao(b,async()=>{await deleteDoc(doc(db,"convites",b.dataset.cv));await carregar()})};
+FC.onsubmit=e=>{e.preventDefault();const em=FC.email.value.trim().toLowerCase(),papel=FC.papel.value,{unidades,permissoes}=lerPerm(FC);if(papel==="equipe"&&!unidades.length)return toast("Escolha ao menos uma unidade.","err");
+acao($("button",FC),async()=>{await setDoc(doc(db,"convites",em),{email:em,tenantId:tid(),papel,unidades:papel==="equipe"?unidades:[],permissoes:papel==="equipe"?permissoes:[],em:serverTimestamp()});toast("Convite criado. O acesso é liberado quando a pessoa entrar no app com este e-mail.");FC.reset();await carregar()})};
+await carregar()};
+
+P.agendamentos=async(t,s)=>{if(!exigir(s,["proprietario","equipe"],"agendamentos"))return;
+const D=$("#d"),L=$("#lista"),meta=t.fidelidade?.meta||10;const UN0=(await getDocs(collection(db,"tenants",t.id,"unidades"))).docs.map(d=>({id:d.id,...d.data()})),UU=s.papel==="equipe"?UN0.filter(u=>(s.unidades||[]).includes(u.id)):UN0;
+let un=localStorage.getItem("und_"+t.id);if(!UU.some(u=>u.id===un))un=UU.length===1?UU[0].id:"";
+const pintar=()=>{$("#und").innerHTML=UU.length?UU.map(u=>`<button type="button" class="und-b${u.id===un?" sel":""}" data-u="${esc(u.id)}" aria-pressed="${u.id===un}">${esc(u.nome)}</button>`).join(""):`<span class="mute">Nenhuma unidade disponível para você.</span>`};pintar();
+$("#und").onclick=e=>{const b=e.target.closest("[data-u]");if(!b)return;un=b.dataset.u;localStorage.setItem("und_"+t.id,un);pintar();lista()};
+D.value=hoje();const dx=d=>new Date(d+"T12:00"),soma=x=>x.reduce((n,a)=>n+(Number(a.preco)-Number(a.desconto||0)),0);
 const kp=l=>{const c=l.filter(a=>a.status==="concluido"),p=l.filter(a=>a.status==="agendado"),k=(r,v)=>`<div class="kpi-c"><span>${r}</span><b>${v}</b></div>`;
 $("#resumo").innerHTML=k("Agendados",p.length)+k("Concluídos",c.length)+k("A receber",brl(soma(p)))+k("Realizado",brl(soma(c)));
 $("#dtit").textContent=dx(D.value).toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})};
 const mover=n=>{const d=dx(D.value);d.setDate(d.getDate()+n);D.value=new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);lista()};
 $("#dprev").onclick=()=>mover(-1);$("#dnext").onclick=()=>mover(1);$("#dhoje").onclick=()=>{D.value=hoje();lista()};
 
-async function lista(){L.innerHTML=`<li><div class="skel"></div></li>`;const q=await getDocs(query(collection(db,"tenants",t.id,"agendamentos"),where("inicio",">=",D.value),where("inicio","<=",D.value+"T23:59")));
+async function lista(){L.innerHTML=`<li><div class="skel"></div></li>`;const q=await getDocs(query(collection(db,"tenants",t.id,"agendamentos"),where("unidadeId","==",un),where("inicio",">=",D.value),where("inicio","<=",D.value+"T23:59")));
 const l=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.inicio.localeCompare(b.inicio));kp(l);
 L.innerHTML=l.length?l.map(a=>`<li class="ag ${a.status}"><span><strong class="hora">${a.inicio.slice(11)}</strong> ${esc(a.clienteNome)}<br><span class="mute">${esc(a.servicoNome)} · ${esc(a.profNome)} · ${esc(a.unidadeNome)} · ${brl(a.preco)}</span></span><span><span class="tag ${["cancelado","ausente"].includes(a.status)?"off":""}">${a.status}</span>${a.status==="agendado"?` <button class="btn" data-a="concluido" data-id="${a.id}">Concluir</button> <button class="btn ghost" data-a="ausente" data-id="${a.id}">Faltou</button> <button class="btn ghost" data-a="cancelado" data-id="${a.id}">Cancelar</button>`:""}</span></li>`).join(""):`<li class="mute">Nenhum agendamento neste dia.</li>`}
 async function concluir(id){const ar=doc(db,"tenants",t.id,"agendamentos",id);return runTransaction(db,async tx=>{const a=await tx.get(ar);if(a.data().status!=="agendado")return false;
