@@ -208,3 +208,11 @@ html[data-efeito=foco] .pcard.sel .arch img{transform:translate(calc(var(--px,0)
 .ag{padding-left:1rem;border-left:3px solid var(--line)}.ag.agendado{border-color:var(--brand)}.ag.concluido{border-color:var(--ok)}.ag.cancelado,.ag.ausente{border-color:var(--err)}.ag .hora{font:1.6rem var(--serif);margin-right:.5rem}
 @media(max-width:1000px){.pers{grid-template-columns:1fr}.prev{position:static}}
 @media(max-width:700px){body[data-papel=proprietario] .topo nav{position:fixed;inset:auto 0 0 0;z-index:5;gap:0;flex-wrap:nowrap;padding:.4rem;overflow-x:auto;background:var(--surf);border-top:var(--bw) solid var(--line)}body[data-papel=proprietario] .topo nav a{padding:.6rem .8rem;white-space:nowrap}body[data-papel=proprietario] .wrap{padding-bottom:5.5rem}}
+
+/* ==== 16. MODO DE VISUALIZAÇÃO EM TELA CHEIA ==== */
+.pbtn{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:var(--s2)}#vsair{display:none}body.cheia{overflow:hidden}
+.prev.cheia{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;gap:.6rem;padding:.8rem 1rem;border-radius:0;border:0;background:var(--bg);overflow:hidden}
+.prev.cheia h2,.prev.cheia>p{display:none}.prev.cheia .pbtn{margin:0}.prev.cheia #vsair{display:inline-flex}.prev.cheia #vcheia{display:none}
+.prev.cheia .cols{grid-template-columns:repeat(3,minmax(0,210px));margin:0}.prev.cheia label{margin:0}
+.prev.cheia .frame{flex:1;min-height:0}.prev.cheia #vif{height:100%;min-height:0}
+@media(max-width:700px){.prev.cheia .cols{grid-template-columns:1fr 1fr 1fr}.prev.cheia .cols label{font-size:.7rem}}

@@ -115,10 +115,13 @@ async function galeria(){const g=await getDocs(collection(db,"tenants",cur.id,"v
 const D={cor:"#23395b",tema:"claro",estilo:"suave",fundo:"",fonte:"classica",borda:1,opac:100,prof:0,brilho:100,logoTam:36,logoPos:"lado",logoForma:"livre",layout:"cinema",fotoForma:"arco",fotoEfeito:"contorno",dataModelo:"faixa",horaModelo:"pilulas",fotoLayout:"grade",heroOverlay:40,homeEquipe:"nao",equipeModelo:"grade",equipeForma:"arco",equipeTam:"m",equipeEfeito:"tilt"};
 const TELAS={cliente:[["index","Início"],["agendar","Agendar"]],loja:[["agendamentos","Agenda"],["unidades","Unidades"],["profissionais","Profissionais"],["servicos","Serviços"],["avaliacoes","Avaliações"],["indicadores","Indicadores"]]};
 const telas=()=>{$("#vtela").innerHTML=TELAS[$("#vmodo").value].map(([r,n])=>`<option value="${r}">${n}</option>`).join("")};
-const ir2=()=>{const i=$("#vif"),w=$("#vdisp").value;i.style.width=w==="100%"?"100%":w+"px";i.src=`${location.pathname}?s=${encodeURIComponent(cur.id)}&vis=${$("#vmodo").value}&_=${Date.now()}#/${$("#vtela").value}`};
+const ir2=()=>{const i=$("#vif"),w=$("#vdisp").value;i.style.width=w==="100%"?"100%":w+"px";i.src=`${location.pathname}?s=${encodeURIComponent(cur.id)}&vis=${$("#vmodo").value}&_=${Date.now()}#/${$("#vtela").value}`;$("#vabrir").href=i.src.replace(/&_=\d+/,"")};
 const escolher=async()=>{cur=L.get(sel.value);const x={...D,...cur.tema};logo=x.logo||"";f.nome.value=cur.nome||"";f.descricao.value=cur.descricao||"";Object.keys(D).forEach(k=>f[k].value=x[k]);f.logo.value="";pv();await galeria();ir2()};
 $("#amostra").innerHTML=["A","B","C"].map(n=>`<button type="button" class="pcard" data-k="p"><span class="arch"><i>${n}</i><em class="tick">✓</em></span><strong>Profissional ${n}</strong></button>`).join("");$("#amostra").onclick=e=>{const b=e.target.closest("button");if(b)marcar(b)};
-$("#carga").remove();f.hidden=false;$("#prev").hidden=false;telas();await escolher();$("#vmodo").onchange=()=>{telas();ir2()};$("#vtela").onchange=$("#vdisp").onchange=ir2;sel.onchange=escolher;
+$("#carga").remove();f.hidden=false;$("#prev").hidden=false;telas();await escolher();$("#vmodo").onchange=()=>{telas();ir2()};$("#vtela").onchange=$("#vdisp").onchange=ir2;
+const cheia=on=>{$("#prev").classList.toggle("cheia",on);document.body.classList.toggle("cheia",on)};
+$("#vcheia").onclick=()=>cheia(true);$("#vsair").onclick=()=>cheia(false);
+document.addEventListener("keydown",function k(e){if(!$("#prev")){document.removeEventListener("keydown",k);document.body.classList.remove("cheia");return}if(e.key==="Escape")cheia(false)});sel.onchange=escolher;
 f.logo.onchange=async()=>{if(f.logo.files[0]){logo=await imgData(f.logo.files[0],320,true);pv();toast("Logo carregada. Salve para publicar.")}};
 f.oninput=e=>{if(!["logo","fotos","tipo","legenda"].includes(e.target.name))pv()};$("#descartar").onclick=escolher;
 $("#gal").onclick=e=>{const b=e.target.closest("[data-x]");if(b)acao(b,async()=>{await deleteDoc(doc(db,"tenants",cur.id,"vitrine",b.dataset.x));await galeria()})};
