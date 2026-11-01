@@ -41,7 +41,7 @@ service cloud.firestore {
     match /tenants/{t} {
       allow read: if true;
       allow create, delete: if isMaster();
-      allow update: if isMaster() || (isOwner(t) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fidelidade','textos','indicacao','politica','planosAtivo']));
+      allow update: if isMaster() || (isOwner(t) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fidelidade','textos','indicacao','politica','planosAtivo','nome','descricao','tema']));
 
       match /unidades/{i}      { allow read: if true; allow write: if isOwner(t); }
       match /profissionais/{i} { allow read: if true; allow write: if can(t,'profissionais'); }
@@ -70,7 +70,7 @@ service cloud.firestore {
         allow update: if signed() && (isOwner(t) || (isStaff(t) && resource.data.unidadeId in acc().unidades) || (resource.data.clienteUid == request.auth.uid && request.resource.data.status == 'cancelado'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) || (resource.data.clienteUid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmado'])));
       }
-      match /vitrine/{i} { allow read: if true; allow write: if isMaster(); }
+      match /vitrine/{i} { allow read: if true; allow write: if isOwner(t); }
       match /bloqueios/{i} {
         allow read: if true;
         allow create: if isOwner(t) || (can(t,'bloqueios') && request.resource.data.unidadeId in acc().unidades);

@@ -299,3 +299,31 @@ textarea{resize:vertical;min-height:4.5rem}input[type=file]{padding:.5rem}input[
 .home[data-filtro=pb] :is(.cine-img,.dv-f img,.rev>figure img,.arch-f img){filter:grayscale(1)}.home[data-filtro=sepia] :is(.cine-img,.dv-f img,.rev>figure img,.arch-f img){filter:sepia(.8)}
 .home[data-filtro=suave] :is(.cine-img,.dv-f img,.rev>figure img,.arch-f img){filter:saturate(.6) brightness(1.05)}.home[data-filtro=vivido] :is(.cine-img,.dv-f img,.rev>figure img,.arch-f img){filter:saturate(1.5) contrast(1.08)}
 @media(max-width:800px){.dv{grid-template-columns:1fr}.dv-f{min-height:46dvh;border-radius:0}.mol{grid-template-columns:1fr}.mol-c{display:none}.mos{grid-template-columns:repeat(2,1fr)}.mos>*{grid-column:span 2!important;grid-row:span 1!important}.mos>.mos-t{grid-row:span 2!important}}
+/* ==== 24. MICROINTERAÇÕES (cada gesto tem a sua) ==== */
+.btn,.ibtn,.und-b,.abas button{position:relative;overflow:hidden}
+.rp{position:absolute;width:10px;height:10px;border-radius:50%;background:currentColor;opacity:.22;translate:-50% -50%;pointer-events:none;animation:onda .6s var(--ease) forwards}@keyframes onda{to{scale:32;opacity:0}}
+.btn:hover{translate:0 -1px}.btn:active{translate:0 0}
+.btn[aria-busy=true]{color:transparent!important}.btn[aria-busy=true]::before{content:"";position:absolute;width:1.1em;height:1.1em;border:2px solid var(--on-brand);border-right-color:transparent;border-radius:50%;animation:gira .7s linear infinite}
+.btn.ghost[aria-busy=true]::before{border-color:var(--ink);border-right-color:transparent}@keyframes gira{to{rotate:360deg}}
+.opt{position:relative;isolation:isolate;overflow:hidden}.opt::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--brand);transform:scaleX(0);transform-origin:left;transition:transform .5s var(--ease)}
+.opt.sel{background:var(--surf);color:var(--on-brand);animation:none}.opt.sel::before{transform:scaleX(1)}.opt strong,.opt small{transition:color .3s .1s}
+.opt::after{content:"✓";position:absolute;right:14px;top:12px;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:var(--on-brand);color:var(--brand);font-size:.8rem;scale:0;transition:scale .5s cubic-bezier(.34,1.56,.64,1)}.opt.sel::after{scale:1}
+.tick{transition:scale .55s cubic-bezier(.34,1.56,.64,1)!important}.pcard.sel .arch img{animation:respira .7s var(--ease)}@keyframes respira{40%{scale:1.06}}
+.day,.cal-d,.dl,.dd{position:relative;isolation:isolate;overflow:hidden}
+.day::before,.cal-d::before,.dl::before,.dd::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--brand);clip-path:circle(0 at var(--mx,50%) var(--my,50%));transition:clip-path .6s var(--ease)}
+.day.sel,.cal-d.sel,.dl.sel,.dd.sel{background:var(--surf);color:var(--on-brand);animation:none}
+.day.sel::before,.cal-d.sel::before,.dl.sel::before,.dd.sel::before{clip-path:circle(170% at var(--mx,50%) var(--my,50%))}
+.chip.sel,.hq.sel,.hl.sel,.ht.sel,.und-b.sel{animation:carimbo .5s var(--ease)}@keyframes carimbo{0%{scale:1}35%{scale:.88}70%{scale:1.07}100%{scale:1}}
+.sucesso .ok{position:relative;display:block;width:88px;height:88px;margin:0 auto var(--s2);background:none;border-radius:0;animation:none}
+.okc{width:88px;height:88px;fill:none;stroke:var(--brand);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.okc circle{stroke-dasharray:151;stroke-dashoffset:151;animation:traco .6s var(--ease) forwards}.okc path{stroke-dasharray:40;stroke-dashoffset:40;animation:traco .4s .5s var(--ease) forwards}@keyframes traco{to{stroke-dashoffset:0}}
+.ok i{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:var(--brand);opacity:0;animation:rajada .7s .55s var(--ease) forwards}@keyframes rajada{from{opacity:1;transform:rotate(var(--a)) translateY(-34px)}to{opacity:0;transform:rotate(var(--a)) translateY(-66px)}}
+/* ==== 25. ESTÚDIO DE APARÊNCIA SEM ROLAGEM ==== */
+.sr{position:absolute;left:-9999px}.wrap.largo{max-width:none;padding:.6rem 1rem 0}
+body[data-papel=proprietario] .wrap,body[data-papel=master] .wrap,body[data-papel=equipe] .wrap{max-width:1440px}
+.studio{grid-template-columns:minmax(500px,40vw) minmax(0,1fr);height:calc(100dvh - 5.2rem);gap:.8rem;align-items:stretch}.studio.foco{grid-template-columns:minmax(0,1fr)}.studio.foco .painel{display:none}
+.painel{display:grid;grid-template-columns:150px minmax(0,1fr);gap:.6rem;position:static;max-height:none;height:100%;min-height:0}
+.abas{flex-direction:column;flex-wrap:nowrap;margin:0;gap:.25rem;overflow:auto}.abas button{text-align:left;border-radius:calc(var(--r)*.7)}.lojasel{margin:0 0 .5rem;font-size:.75rem}.lojasel select{width:100%;margin-top:.2rem}
+.painel form{min-height:0;overflow:auto}.painel form section{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:.5rem .8rem;align-content:start}
+.painel section>h2,.painel section>h3,.painel section>p,.painel section>button,.painel section>.gal{grid-column:1/-1}.painel label{margin:0;font-size:.78rem}
+.painel input:not([type=checkbox]):not([type=range]),.painel select,.painel textarea{padding:.42rem .55rem;font-size:.85rem}.painel h3{margin:.6rem 0 0;padding-top:.5rem}.pv{position:static;height:100%}
+@media(max-width:1000px){.studio{grid-template-columns:1fr;height:auto}.painel{grid-template-columns:1fr;height:auto}.abas{flex-direction:row;flex-wrap:wrap;overflow:visible}.painel form{overflow:visible}.pv{height:78dvh}}

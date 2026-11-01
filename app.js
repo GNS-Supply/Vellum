@@ -46,7 +46,10 @@ const t=c.t;if(OVR&&OVR.id===id)Object.assign(t,{nome:OVR.nome,tema:OVR.tema});i
 
 /* ==== 4. AUTENTICAÇÃO E PAPÉIS (papel vem de masters/ e acessos/, só o Master grava) ==== */
 let SES;const sessaoBase=async()=>SES&&auth.currentUser?.uid===SES.u.uid?SES:(SES=await sessaoRaw());
-const sessao=async()=>{const s=await sessaoBase(),v=new URLSearchParams(location.search).get("vis");return s?.papel==="master"&&v&&slug()?{...s,papel:v==="loja"?"proprietario":"cliente",tenantId:v==="loja"?slug():undefined,previa:true}:s};
+const sessao=async()=>{const s=await sessaoBase(),p=new URLSearchParams(location.search),v=p.get("vis");
+if(s?.papel==="master"&&v&&slug())return{...s,papel:v==="loja"?"proprietario":"cliente",tenantId:v==="loja"?slug():undefined,previa:true};
+if(s?.papel==="proprietario"&&v)return{...s,papel:v==="loja"?"proprietario":"cliente",tenantId:v==="loja"?s.tenantId:undefined,previa:true};
+if(s?.papel==="master"&&p.get("gerir")&&slug())return{...s,papel:"proprietario",tenantId:slug(),gerindo:true};return s};
 const sessaoRaw=()=>new Promise(r=>{const un=onAuthStateChanged(auth,async u=>{un();r(u?{u,...await papelDe(u)}:null)})});
 async function papelDe(u){if((await getDoc(doc(db,"masters",u.uid))).exists())return{papel:"master"};
 let a=await getDoc(doc(db,"acessos",u.uid));
@@ -63,15 +66,16 @@ async function auditar(ev,dados){await addDoc(collection(db,"auditoria"),{ev,dad
 /* ==== 5. CABEÇALHO COMPARTILHADO ==== */
 function topo(t,s){document.body.dataset.papel=s?.papel||"";const n=[];
 if(s?.papel==="cliente")n.push(["agendar.html","Agendar"],["cliente.html","Meu perfil"]);
-const NAV=[["agendamentos.html","Agenda",1],["clientes.html","Clientes",0],["bloqueios.html","Bloqueios",1],["unidades.html","Unidades",0],["profissionais.html","Profissionais",1],["servicos.html","Serviços",1],["produtos.html","Produtos",1],["promocoes.html","Promoções",0],["metas.html","Metas",0],["avaliacoes.html","Avaliações",1],["indicadores.html","Indicadores",0],["planos.html","Planos",0],["assinaturas.html","Pacotes",0],["financeiro.html","Financeiro",0],["equipe.html","Equipe",0],["ajustes.html","Ajustes",0]];
+const NAV=[["agendamentos.html","Agenda",1],["clientes.html","Clientes",0],["bloqueios.html","Bloqueios",1],["unidades.html","Unidades",0],["profissionais.html","Profissionais",1],["servicos.html","Serviços",1],["produtos.html","Produtos",1],["promocoes.html","Promoções",0],["metas.html","Metas",0],["avaliacoes.html","Avaliações",1],["indicadores.html","Indicadores",0],["planos.html","Planos",0],["assinaturas.html","Pacotes",0],["financeiro.html","Financeiro",0],["personalizacao.html","Aparência",0],["equipe.html","Equipe",0],["ajustes.html","Ajustes",0]];
 if(s?.papel==="proprietario")NAV.forEach(([r,l])=>n.push([r,l]));
 if(s?.papel==="equipe")NAV.forEach(([r,l,a])=>{const k=r.replace(".html","");if(a&&(k==="agendamentos"||(s.permissoes||[]).includes(k)))n.push([r,l])});
 if(s?.papel==="master")n.push(["master.html","Plataforma"],["personalizacao.html","Aparência"],["equipe.html","Equipe"]);
-$("#topo").innerHTML=`<a class="marca ${cfgT(t).logoCab==="centro"?"col":""}" data-l="index.html">${cabLogo(t)}${cabNome(t)?esc(t?.nome||"Agenda"):""}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}"${p.replace(".html","")===(location.hash.replace(/^#\/?/,"")||"index")?' aria-current="page"':""}>${l}</a>`).join("")}${s?.previa?`<span class="tag">Prévia</span>`:s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
+$("#topo").innerHTML=`<a class="marca ${cfgT(t).logoCab==="centro"?"col":""}" data-l="index.html">${cabLogo(t)}${cabNome(t)?esc(t?.nome||"Agenda"):""}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}"${p.replace(".html","")===(location.hash.replace(/^#\/?/,"")||"index")?' aria-current="page"':""}>${l}</a>`).join("")}${s?.gerindo?`<span class="tag">Modo Master</span><a class="btn ghost sm" href="${location.pathname}#/master">Sair da loja</a>`:""}${s?.previa?`<span class="tag">Prévia</span>`:s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
 $("#sair")?.addEventListener("click",async()=>{await signOut(auth);location.replace(href("index.html"))})}
 
 /* ==== 6. PÁGINAS (cada uma só roda quando <body data-page="..."> coincide) ==== */
 const P={};
+const OKSVG=`<svg class="okc" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="M14 27l8 8 16-17"/></svg>`+[0,45,90,135,180,225,270,315].map(a=>`<i style="--a:${a}deg"></i>`).join("");
 const ALLSEC=["promo","planos","servicos","avaliacoes","galeria","cta"],POSV={t:"flex-start",m:"center",b:"flex-end",l:"flex-start",c:"center",r:"flex-end"},TA={l:"left",c:"center",r:"right"};
 const legado=x=>{if(!x||x.logoCab||x.logoHome)return{};const p=x.logoPos;return p==="hero"?{logoCab:"nenhuma",logoHome:"acima"}:p==="marca"?{logoCab:"nenhuma",logoHome:"dagua"}:p?{logoCab:p}:{}};
 const cfgT=t=>({...legado(t?.tema),...(t?.tema||{})});
@@ -130,7 +134,7 @@ $("#petw").hidden=t?.tema?.segmento!=="pet";const d=(await getDoc(ref)).data()||
 f.onsubmit=e=>{e.preventDefault();if(f.cpf.value&&!cpfValido(f.cpf.value))return toast("CPF inválido. Confira os números ou deixe em branco.","err");
 acao($("button",f),async()=>{const v={};CAMPOS.forEach(k=>v[k]=f[k].value.trim());await setDoc(ref,v,{merge:true});toast("Perfil salvo.")})}};
 
-P.personalizacao=async(t,s)=>{if(!exigir(s,["master"]))return;const f=$("#f"),sel=$("#lojas"),q=await getDocs(collection(db,"tenants"));
+P.personalizacao=async(t,s)=>{if(!exigir(s,["master","proprietario"]))return;$("#main").classList.add("largo");const adm=s.papel==="proprietario",f=$("#f"),sel=$("#lojas"),q=adm?{empty:false,docs:[await getDoc(doc(db,"tenants",s.tenantId))]}:await getDocs(collection(db,"tenants"));if(adm)sel.closest("label").hidden=true;
 if(q.empty){$("#carga").remove();toast("Crie um estabelecimento primeiro, na tela Plataforma.","err");return}
 const L=new Map(q.docs.map(d=>[d.id,{id:d.id,...d.data()}]));sel.innerHTML=[...L.values()].map(x=>`<option value="${esc(x.id)}">${esc(x.nome)}</option>`).join("");let cur,logo="",rota="index";
 const D={cor:"#23395b",tema:"claro",estilo:"suave",fundo:"",fonte:"classica",borda:1,opac:100,prof:0,brilho:100,segmento:"barbearia",logoForma:"livre",logoCab:"lado",logoTam:36,nomeCab:"sim",logoHome:"nenhuma",logoHomeTam:140,layout:"cinema",heroAltura:"tela",heroCurva:"nenhuma",heroFiltro:"nenhum",heroOverlay:40,heroAnim:"zoom",fxFoto:"zoom",homeTitulo:"",homeSub:"",ctaTexto:"",ctaEstilo:"solido",nomeHome:"sim",subHome:"sim",nomeTam:100,tituloAnim:"nenhum",textoPos:"bl",homeEquipe:"nao",equipeModelo:"grade",equipeForma:"arco",equipeTam:"m",equipeEfeito:"tilt",fotoLayout:"grade",fotoForma:"arco",fotoEfeito:"contorno",dataModelo:"faixa",horaModelo:"pilulas"};
@@ -153,7 +157,7 @@ Object.keys(D).forEach(k=>f[k].value=x[k]);f.logo.value="";const sec=x.secoes||A
 $("#abas").onclick=e=>{const b=e.target.closest("button");if(b)aba(b.dataset.aba)};
 $("#vmodo").onchange=()=>{rota=TELAS[$("#vmodo").value][0][0];telas();carregar()};$("#vtela").onchange=()=>{rota=$("#vtela").value;msg({rota})};$("#vdisp").onchange=ajustar;
 const cheia=on=>{$("#prev").classList.toggle("cheia",on);document.body.classList.toggle("cheia",on);$("#vsair").hidden=!on;$("#vcheia").hidden=on;setTimeout(ajustar,60)};
-$("#vcheia").onclick=()=>cheia(true);$("#vsair").onclick=()=>cheia(false);addEventListener("resize",ajustar);if(typeof ResizeObserver!=="undefined")new ResizeObserver(ajustar).observe($(".frame"));
+$("#vfoco").onclick=()=>{$(".studio").classList.toggle("foco");setTimeout(ajustar,60)};$("#vcheia").onclick=()=>cheia(true);$("#vsair").onclick=()=>cheia(false);addEventListener("resize",ajustar);if(typeof ResizeObserver!=="undefined")new ResizeObserver(ajustar).observe($(".frame"));
 document.addEventListener("keydown",function k(e){if(!$("#prev")){document.removeEventListener("keydown",k);document.body.classList.remove("cheia");return}if(e.key==="Escape")cheia(false)});
 $("#carga").remove();$("#painel").hidden=false;$("#prev").hidden=false;telas();aba("marca");
 f.logo.onchange=async()=>{if(f.logo.files[0]){logo=await imgData(f.logo.files[0],320,true);pv();toast("Logo carregada. Salve para publicar.")}};
@@ -168,7 +172,7 @@ await escolher()};
 P.master=async(t,s)=>{if(!exigir(s,["master"]))return;const L=$("#lista"),sel=$("#sel");
 async function listar(){const q=await getDocs(collection(db,"tenants"));$("#carga")?.remove();
 L.innerHTML=q.empty?`<li class="mute">Nenhum estabelecimento ainda. Crie o primeiro ao lado.</li>`:q.docs.map(d=>{const x=d.data(),on=x.status!=="suspenso";
-return`<li><span><strong>${esc(x.nome)}</strong><br><span class="mute">${esc(d.id)}</span> <span class="tag ${on?"":"off"}">${on?"ativo":"suspenso"}</span></span><button class="btn ghost" data-id="${esc(d.id)}" data-st="${on?"suspenso":"ativo"}">${on?"Suspender":"Reativar"}</button></li>`}).join("");
+return`<li><span><strong>${esc(x.nome)}</strong><br><span class="mute">${esc(d.id)}</span> <span class="tag ${on?"":"off"}">${on?"ativo":"suspenso"}</span></span><a class="btn sm" href="?s=${esc(d.id)}&gerir=1#/agendamentos">Gerenciar</a> <button class="btn ghost" data-id="${esc(d.id)}" data-st="${on?"suspenso":"ativo"}">${on?"Suspender":"Reativar"}</button></li>`}).join("");
 sel.innerHTML=q.docs.map(d=>`<option value="${esc(d.id)}">${esc(d.data().nome)}</option>`).join("")}
 L.onclick=e=>{const b=e.target.closest("button");if(!b)return;acao(b,async()=>{await updateDoc(doc(db,"tenants",b.dataset.id),{status:b.dataset.st});await auditar("tenant.status",{id:b.dataset.id,status:b.dataset.st});toast("Status atualizado.");await listar()})};
 $("#nova").onsubmit=e=>{e.preventDefault();const f=e.target,id=f.id_.value.trim().toLowerCase();
@@ -317,10 +321,10 @@ A.onclick=e=>{const b=e.target.closest("button");if(!b)return;
 if(b.hasAttribute("data-back"))return ir(st.step-1);
 if(b.hasAttribute("data-novo")){Object.assign(st,{step:unica?1:0,p:null,s:"",d:"",sl:null,cupom:"",desc:0});return draw()}
 const{k,id}=b.dataset;
-if(k==="u"){st.u=id;st.p=null;marcar(b);setTimeout(()=>ir(1),380)}
-if(k==="p"){st.p=id;marcar(b);b.scrollIntoView({inline:"center",block:"nearest",behavior:"smooth"});setTimeout(()=>ir(2),380)}
-if(k==="s"){st.s=id;st.cupom="";st.desc=0;marcar(b);setTimeout(()=>ir(3),380)}
-if(k==="d"){st.d=id;marcar(b);setTimeout(()=>ir(4),380)}
+if(k==="u"){st.u=id;st.p=null;marcar(b);setTimeout(()=>ir(1),520)}
+if(k==="p"){st.p=id;marcar(b);b.scrollIntoView({inline:"center",block:"nearest",behavior:"smooth"});setTimeout(()=>ir(2),520)}
+if(k==="s"){st.s=id;st.cupom="";st.desc=0;marcar(b);setTimeout(()=>ir(3),520)}
+if(k==="d"){st.d=id;marcar(b);setTimeout(()=>ir(4),520)}
 if(k==="h"){st.sl=st.lista[id];document.querySelectorAll("#hs [data-k=h]").forEach(x=>x.classList.toggle("sel",x===b));const v=sv();
 $("#res").innerHTML=`<div class="card resumo"><p style="margin:0 0 .8rem"><strong>${esc(v.nome)}</strong> · ${esc(fmt(st.d+"T"+st.sl.h))}<br><span class="mute">${st.p===""?"Profissional disponível no horário":"Com "+esc(PR.find(x=>x.id===st.p)?.nome||"")} · <span id="pf">${brl(v.preco-(st.desc||0))}</span></span></p><div class="cup"><input id="cup" placeholder="Cupom de desconto" value="${esc(st.cupom||"")}" aria-label="Cupom"><button class="btn ghost sm" id="aplicar" type="button">Aplicar</button></div><p class="mute" id="cupmsg"></p><label class="rep">Repetir<select id="rep"><option value="0">Somente esta vez</option><option value="3">Toda semana, por 4 semanas</option><option value="7">Toda semana, por 8 semanas</option><option value="11">Toda semana, por 12 semanas</option></select></label><button class="btn" id="ok">Confirmar agendamento</button></div>`;$("#res").scrollIntoView({behavior:"smooth",block:"nearest"})}
 if(b.id==="espera")return acao(b,async()=>{const ud=(await getDoc(doc(db,"users",s.u.uid))).data()||{};await addDoc(C("espera"),{clienteUid:s.u.uid,clienteNome:s.u.displayName||s.u.email,telefone:ud.telefone||"",unidadeId:st.u,profId:st.p||"",servicoNome:sv().nome,data:st.d,em:serverTimestamp()});toast("Combinado! A loja avisa se surgir uma vaga.");b.disabled=true});
@@ -331,7 +335,7 @@ if(b.id==="ok")acao(b,async()=>{const p=await reservar();const nr=+($("#rep")?.v
 for(let k=1;k<=nr;k++){const d2=somaDia(st.d,7*k),m0=mins(st.sl.h);if(BL.some(b=>b.data===d2&&(!b.unidadeId||b.unidadeId===st.u)&&(!b.profId||b.profId===p.id)&&(b.todoDia||(mins(b.de)<m0+sv().duracao&&mins(b.ate)>m0)))){pul.push(d2);continue}
 try{await reservar(d2,[p],true);ok2++}catch(e){if(e.message_pt)pul.push(d2);else throw e}}
 if(nr)toast(`${ok2} sessão(ões) semanal(is) também reservada(s).${pul.length?" Sem vaga em: "+pul.map(x=>x.split("-").reverse().slice(0,2).join("/")).join(", ")+".":""}`);
-A.innerHTML=`<div class="sucesso"><div class="ok">✓</div><h2>Agendado!</h2><p class="lead" style="margin:0 auto 1rem">${esc(p.nome)} · ${esc(fmt(st.d+"T"+st.sl.h))}</p><button class="btn ghost" data-novo>Fazer outro agendamento</button></div>`;await meus()})};
+A.innerHTML=`<div class="sucesso"><div class="ok">${OKSVG}</div><h2>Agendado!</h2><p class="lead" style="margin:0 auto 1rem">${esc(p.nome)} · ${esc(fmt(st.d+"T"+st.sl.h))}</p><button class="btn ghost" data-novo>Fazer outro agendamento</button></div>`;await meus()})};
 if(matchMedia("(hover:hover)").matches){const alvo=e=>e.target.closest(".pcard")?.querySelector(".arch");
 A.onpointermove=e=>{const a=alvo(e);if(!a)return;const r=a.getBoundingClientRect();a.style.setProperty("--px",((e.clientX-r.left)/r.width-.5)*2);a.style.setProperty("--py",((e.clientY-r.top)/r.height-.5)*2)};
 A.onpointerout=e=>{const a=alvo(e);a?.style.removeProperty("--px");a?.style.removeProperty("--py")}}
@@ -507,11 +511,13 @@ const lim=(p,ms=10000)=>Promise.race([p,new Promise((_,no)=>setTimeout(()=>no({m
 const aviso=(h,m)=>{if($("#boot"))$("#main").innerHTML=`<section class="hero"><h1>${h}</h1><p class="lead">${m}</p></section>`};
 async function rotear(manter){const sy=scrollY;if(!CONFIG_OK)return aviso("Falta configurar o Firebase","Abra app.js e cole a configuração do seu projeto Firebase na constante FIREBASE, no topo do arquivo.");const id=++exec,r=location.hash.replace(/^#\/?/,"")||"index",pg=P[r]?r:"index";
 try{const s=await lim(sessao()),t=await lim(carregarTenant(s?.papel==="master"&&!s.previa&&!["index","agendar"].includes(pg)?false:s?.tenantId||null));if(id!==exec)return;TT=t;if(!t)aplicarTema();
-await (manter?(f=>f()):vt)(()=>{$("#main").classList.remove("solto");$("#main").replaceChildren(document.getElementById("t-"+pg).content.cloneNode(true));document.body.dataset.page=pg;topo(t,s)});
+await (manter?(f=>f()):vt)(()=>{$("#main").classList.remove("solto","largo");$("#main").replaceChildren(document.getElementById("t-"+pg).content.cloneNode(true));document.body.dataset.page=pg;topo(t,s)});
 const ln=()=>document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));ln();await P[pg](t,s);ln();if(!manter){scrollTo(0,0);$("#main").focus({preventScroll:true})}else scrollTo(0,sy);if(parent!==window&&new URLSearchParams(location.search).get("vis")){parent.postMessage({rota:pg,pronto:!PING},location.origin);PING=1}}
 catch(e){console.error(e);aviso("Não foi possível carregar",esc(msgErro(e)));toast(msgErro(e),"err")}}
 addEventListener("hashchange",()=>rotear());
 let deb;addEventListener("message",e=>{if(e.origin!==location.origin||!new URLSearchParams(location.search).get("vis"))return;if(e.data?.rota){location.hash="#/"+e.data.rota;return}if(!e.data?.tema||!TT)return;OVR={id:TT.id,nome:e.data.nome,tema:e.data.tema};clearTimeout(deb);deb=setTimeout(()=>rotear(true),250)});
 {const rf=new URLSearchParams(location.search).get("ref");if(rf)localStorage.setItem("ref",rf)}
+document.addEventListener("pointerdown",e=>{const el=e.target.closest(".btn,.ibtn,.und-b,.abas button,.opt,.day,.cal-d,.dl,.dd");if(!el)return;const r=el.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;el.style.setProperty("--mx",x+"px");el.style.setProperty("--my",y+"px");
+if(el.matches(".btn,.ibtn,.und-b,.abas button")){const p=document.createElement("span");p.className="rp";p.style.left=x+"px";p.style.top=y+"px";el.append(p);p.addEventListener("animationend",()=>p.remove())}},{passive:true});
 {const sk=document.createElement("button");sk.className="skip";sk.textContent="Pular para o conteúdo";sk.onclick=()=>$("#main").focus();document.body.prepend(sk)}
 rotear();
