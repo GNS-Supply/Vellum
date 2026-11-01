@@ -34,14 +34,14 @@ service cloud.firestore {
     match /users/{u} {
       allow read: if signed() && (request.auth.uid == u || isMaster());
       allow create, update: if signed() && request.auth.uid == u
-        && request.resource.data.keys().hasOnly(['nome','email','telefone','nascimento','cpf','cep','endereco','estilo','foto','criadoEm','lgpdEm'])
+        && request.resource.data.keys().hasOnly(['nome','email','telefone','nascimento','cpf','cep','endereco','estilo','foto','criadoEm','lgpdEm','pet'])
         && request.resource.data.email == request.auth.token.email;
       allow delete: if signed() && request.auth.uid == u;
     }
     match /tenants/{t} {
       allow read: if true;
       allow create, delete: if isMaster();
-      allow update: if isMaster() || (isOwner(t) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fidelidade','textos','indicacao']));
+      allow update: if isMaster() || (isOwner(t) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fidelidade','textos','indicacao','politica','planosAtivo']));
 
       match /unidades/{i}      { allow read: if true; allow write: if isOwner(t); }
       match /profissionais/{i} { allow read: if true; allow write: if can(t,'profissionais'); }
@@ -61,13 +61,14 @@ service cloud.firestore {
           && request.resource.data.n <= get(/databases/$(db)/documents/tenants/$(t)/unidades/$(request.resource.data.u)).data.capacidade;
       }
       match /agendamentos/{i} {
+        allow create: if signed() && (isOwner(t) || (isStaff(t) && request.resource.data.unidadeId in acc().unidades)) && request.resource.data.status == 'agendado';
         allow read: if signed() && (resource.data.clienteUid == request.auth.uid || isOwner(t) || (isStaff(t) && resource.data.unidadeId in acc().unidades));
         allow create: if signed() && request.resource.data.clienteUid == request.auth.uid && request.resource.data.status == 'agendado'
           && request.resource.data.preco == get(/databases/$(db)/documents/tenants/$(t)/servicos/$(request.resource.data.servicoId)).data.preco
           && (request.resource.data.get('cupom','') != '' || request.resource.data.get('desconto',0) == 0)
           && (request.resource.data.get('cupom','') == '' || (get(/databases/$(db)/documents/tenants/$(t)/promocoes/$(request.resource.data.cupom)).data.ativo == true && request.resource.data.desconto <= request.resource.data.preco));
         allow update: if signed() && (isOwner(t) || (isStaff(t) && resource.data.unidadeId in acc().unidades) || (resource.data.clienteUid == request.auth.uid && request.resource.data.status == 'cancelado'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])));
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) || (resource.data.clienteUid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmado'])));
       }
       match /vitrine/{i} { allow read: if true; allow write: if isMaster(); }
       match /bloqueios/{i} {
@@ -81,6 +82,23 @@ service cloud.firestore {
         allow get: if true;
         allow list: if isStaff(t) || resource.data.emailCliente == "" || (signed() && resource.data.emailCliente == request.auth.token.email);
         allow write: if isOwner(t);
+      }
+      match /clientes/{i}  { allow read, write: if isOwner(t); }
+      match /despesas/{i}  { allow read, write: if isOwner(t); }
+      match /planos/{i} { allow read: if true; allow write: if isOwner(t); }
+      match /assinaturas/{i} {
+        allow read: if signed() && (isStaff(t) || resource.data.clienteUid == request.auth.uid);
+        allow create: if signed() && request.resource.data.clienteUid == request.auth.uid && request.resource.data.status == 'solicitado'
+          && request.resource.data.restantes == request.resource.data.sessoes
+          && request.resource.data.preco == get(/databases/$(db)/documents/tenants/$(t)/planos/$(request.resource.data.planoId)).data.preco
+          && request.resource.data.sessoes == get(/databases/$(db)/documents/tenants/$(t)/planos/$(request.resource.data.planoId)).data.sessoes;
+        allow update: if isStaff(t);
+      }
+      match /produtos/{i} { allow read: if isStaff(t); allow write: if can(t,'produtos'); }
+      match /vendas/{i}   { allow read: if isOwner(t); allow create: if can(t,'produtos'); }
+      match /espera/{i} {
+        allow read, delete: if signed() && (resource.data.clienteUid == request.auth.uid || isOwner(t) || (isStaff(t) && resource.data.unidadeId in acc().unidades));
+        allow create: if signed() && request.resource.data.clienteUid == request.auth.uid;
       }
       match /avaliacoes/{i} {
         allow read: if resource.data.publica == true || (signed() && (resource.data.cli == request.auth.uid || can(t,'avaliacoes')));
