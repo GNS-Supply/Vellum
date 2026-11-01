@@ -17,7 +17,7 @@ const msgErro=e=>ERROS[e.code]||e.message_pt||"Não foi possível concluir. Tent
 async function acao(btn,fn){if(new URLSearchParams(location.search).get("vis")){toast("Modo visualização: as ações ficam desativadas.","err");return}btn.setAttribute("aria-busy","true");try{await fn()}catch(e){console.error(e);toast(msgErro(e),"err")}finally{btn.removeAttribute("aria-busy")}}
 function cpfValido(v){const d=v.replace(/\D/g,"");if(d.length!==11||/^(\d)\1+$/.test(d))return false;const dv=n=>{let s=0;for(let i=0;i<n;i++)s+=d[i]*(n+1-i);return(s*10%11)%10};return dv(9)==d[9]&&dv(10)==d[10]}
 
-function inclinar(raiz){if(!matchMedia("(hover:hover)").matches)return;const al=e=>e.target.closest(".t3d>*,[data-e=tilt]>*");
+function inclinar(raiz){if(!matchMedia("(hover:hover)").matches)return;const al=e=>e.target.closest(".t3d>*,[data-e=tilt]>*,[data-fx=tilt] figure");
 raiz.addEventListener("pointermove",e=>{const c=al(e);if(!c)return;const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;
 c.style.setProperty("--ry",(x*18).toFixed(1)+"deg");c.style.setProperty("--rx",(-y*18).toFixed(1)+"deg");c.style.setProperty("--px",(x*2).toFixed(2));c.style.setProperty("--py",(y*2).toFixed(2))});
 raiz.addEventListener("pointerout",e=>{const c=al(e);if(!c)return;["--rx","--ry","--px","--py"].forEach(k=>c.style.removeProperty(k))})}
@@ -67,38 +67,51 @@ const NAV=[["agendamentos.html","Agenda",1],["clientes.html","Clientes",0],["blo
 if(s?.papel==="proprietario")NAV.forEach(([r,l])=>n.push([r,l]));
 if(s?.papel==="equipe")NAV.forEach(([r,l,a])=>{const k=r.replace(".html","");if(a&&(k==="agendamentos"||(s.permissoes||[]).includes(k)))n.push([r,l])});
 if(s?.papel==="master")n.push(["master.html","Plataforma"],["personalizacao.html","Aparência"],["equipe.html","Equipe"]);
-$("#topo").innerHTML=`<a class="marca ${t?.tema?.logoPos==='centro'?"col":""}" data-l="index.html">${logoTag(t,["lado","centro","so"])}${t?.tema?.logoPos==="so"&&t.tema.logo?"":esc(t?.nome||"Agenda")}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}"${p.replace(".html","")===(location.hash.replace(/^#\/?/,"")||"index")?' aria-current="page"':""}>${l}</a>`).join("")}${s?.previa?`<span class="tag">Prévia</span>`:s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
+$("#topo").innerHTML=`<a class="marca ${cfgT(t).logoCab==="centro"?"col":""}" data-l="index.html">${cabLogo(t)}${cabNome(t)?esc(t?.nome||"Agenda"):""}</a><nav aria-label="Principal">${n.map(([p,l])=>`<a data-l="${p}"${p.replace(".html","")===(location.hash.replace(/^#\/?/,"")||"index")?' aria-current="page"':""}>${l}</a>`).join("")}${s?.previa?`<span class="tag">Prévia</span>`:s?`<button class="btn ghost" id="sair">Sair</button>`:`<a data-l="login.html" class="btn ghost">Entrar</a>`}</nav>`;
 $("#sair")?.addEventListener("click",async()=>{await signOut(auth);location.replace(href("index.html"))})}
 
 /* ==== 6. PÁGINAS (cada uma só roda quando <body data-page="..."> coincide) ==== */
 const P={};
+const ALLSEC=["promo","planos","servicos","avaliacoes","galeria","cta"],POSV={t:"flex-start",m:"center",b:"flex-end",l:"flex-start",c:"center",r:"flex-end"},TA={l:"left",c:"center",r:"right"};
+const legado=x=>{if(!x||x.logoCab||x.logoHome)return{};const p=x.logoPos;return p==="hero"?{logoCab:"nenhuma",logoHome:"acima"}:p==="marca"?{logoCab:"nenhuma",logoHome:"dagua"}:p?{logoCab:p}:{}};
+const cfgT=t=>({...legado(t?.tema),...(t?.tema||{})});
+const cabLogo=t=>{const x=cfgT(t);return x.logo&&(x.logoCab||"lado")!=="nenhuma"?`<img class="logo lf-${x.logoForma||"livre"}" src="${x.logo}" alt="${esc(t.nome)}">`:""};
+const cabNome=t=>{const x=cfgT(t);return x.nomeCab!=="nao"&&!(x.logo&&x.logoCab==="so")};
 function revelar(){const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("vis");io.unobserve(e.target)}}),{threshold:.12});document.querySelectorAll(".rv").forEach((x,i)=>{x.style.transitionDelay=(i%4)*70+"ms";io.observe(x)})}
 P.index=async t=>{const h=$("#hero");
 if(t?.suspenso)return h.innerHTML=`<h1>Estabelecimento indisponível</h1><p class="lead">Este estabelecimento está temporariamente fora do ar.</p>`;
 if(!t){const q=await getDocs(query(collection(db,"tenants"),where("status","==","ativo"),limit(20)));
 return h.innerHTML=`<h1>Escolha onde quer ser atendido</h1>`+(q.empty?`<p class="lead">Nenhum estabelecimento cadastrado ainda. Peça ao administrador da plataforma para criar o primeiro.</p>`:`<div class="grid" style="width:100%">${q.docs.map(d=>`<a class="card lnk" href="?s=${encodeURIComponent(d.id)}#/index"><strong>${esc(d.data().nome)}</strong><br><span class="mute">${esc(d.data().descricao||"")}</span></a>`).join("")}</div>`)}
-const ler=async n=>(await getDocs(collection(db,"tenants",t.id,n))).docs.map(d=>({id:d.id,...d.data()})),tm=t.tema||{};
-const[V,PR,SV,rv]=await Promise.all([ler("vitrine"),ler("profissionais"),ler("servicos"),voc(t).pub?rev(t):""]);
-const cta=`<span class="ctas"><a class="btn cta" data-l="agendar.html">${voc(t).ag}</a>${t.planosAtivo?'<a class="btn ghost cta cta2" data-l="agendar.html">Ver planos</a>':""}</span>`,fig=v=>`<figure class="rv"><img src="${v.img}" alt="${esc(v.legenda||v.tipo)}" loading="lazy"><figcaption>${esc(v.legenda||"")}</figcaption></figure>`;
-const capa=V.find(v=>v.tipo==="capa"),fotos=V.filter(v=>v!==capa).sort((a,b)=>a.ordem-b.ordem),todas=[capa,...fotos].filter(Boolean),L=tm.layout||"cinema";
-const txt=`${logoTag(t,["hero"],"hero-logo")}<h1>${esc(t.nome)}</h1><p class="lead">${esc(t.descricao||"")}</p>${cta}`;let topoH="";
-if(L==="cinema")topoH=`<section class="cine"><div class="cine-img" ${capa?`style="background-image:url('${capa.img}')"`:""}></div><div class="cine-txt">${txt}</div></section>${fotos.length?`<section class="strip">${fotos.map(fig).join("")}</section>`:""}`;
-if(L==="mosaico")topoH=`<section class="sec"><div class="mos"><div class="mos-t rv">${txt}</div>${todas.slice(0,8).map(fig).join("")}</div></section>`;
-if(L==="editorial")topoH=`<section class="edi"><div class="edi-t">${txt}</div><div class="edi-f">${todas.map(fig).join("")||""}</div></section>`;
+const ler=async n=>(await getDocs(collection(db,"tenants",t.id,n))).docs.map(d=>({id:d.id,...d.data()})),tm=cfgT(t),sx=tm.secoes||ALLSEC,on=k=>sx.includes(k);
+const[V,PR,SV,rv]=await Promise.all([ler("vitrine"),ler("profissionais"),ler("servicos"),on("avaliacoes")&&voc(t).pub?rev(t):""]);
+const fig=v=>`<figure class="rv"><img src="${v.img}" alt="${esc(v.legenda||v.tipo)}" loading="lazy"><figcaption>${esc(v.legenda||"")}</figcaption></figure>`;
+const capa=V.find(v=>v.tipo==="capa"),fotos=V.filter(v=>v!==capa).sort((a,b)=>a.ordem-b.ordem),todas=[capa,...fotos].filter(Boolean);let L=tm.layout||"cinema";if(L==="editorial")L="divisao";
+const cta=`<span class="ctas"><a class="btn cta${tm.ctaEstilo==="contorno"?" cta2":""}" data-l="agendar.html">${esc(tm.ctaTexto||voc(t).ag)}</a>${t.planosAtivo?'<a class="btn ghost cta cta2" data-l="agendar.html">Ver planos</a>':""}</span>`;
+const titulo=tm.homeTitulo||t.nome,pal=tm.tituloAnim==="palavras"?titulo.split(/\s+/).map((w,i)=>`<span class="w" style="--i:${i}">${esc(w)}</span>`).join(" "):esc(titulo),lh=tm.logoHome||"nenhuma",tl=!!tm.logo;
+const img=c=>`<img class="logo hlogo lf-${tm.logoForma||"livre"} ${c}" src="${tm.logo}" alt="${esc(t.nome)}">`;
+const txt=`${tl&&["acima","selo"].includes(lh)?img(lh):""}${tl&&lh==="substitui"?img("subst"):tm.nomeHome==="nao"?"":`<h1 class="hn">${pal}</h1>`}${tm.subHome==="nao"?"":`<p class="lead">${esc(tm.homeSub||t.descricao||"")}</p>`}${cta}`;
+const strip=on("galeria")&&fotos.length?`<section class="strip">${fotos.map(fig).join("")}</section>`:"";let topoH="";
+if(L==="cinema")topoH=`<section class="cine"><div class="cine-img" ${capa?`style="background-image:url('${capa.img}')"`:""}></div><div class="cine-txt">${txt}</div></section>${strip}`;
+if(L==="divisao")topoH=`<section class="dv"><div class="dv-t">${txt}</div><figure class="dv-f">${capa?`<img src="${capa.img}" alt="">`:""}</figure></section>${strip}`;
+if(L==="moldura"){const lado=fotos.slice(0,2);topoH=`<section class="mol"><div class="mol-c">${lado[0]?fig(lado[0]):""}</div><div class="mol-m">${capa?`<figure class="arch-f"><img src="${capa.img}" alt=""></figure>`:""}<div class="mol-t">${txt}</div></div><div class="mol-c">${lado[1]?fig(lado[1]):""}</div></section>${on("galeria")&&fotos.length>2?`<section class="strip">${fotos.slice(2).map(fig).join("")}</section>`:""}`}
+if(L==="mosaico"){const p=todas.slice(0,5),k=Math.max(0,p.length-1),sp=k===1?[6,2]:k===2?[3,2]:k===3?[2,2]:[3,1],tile=(v,c,r)=>fig(v).replace('class="rv"',`class="rv" style="grid-column:span ${c};grid-row:span ${r}"`);
+topoH=`<section class="sec"><div class="mos"><div class="mos-t rv" style="grid-column:span ${p.length?3:6};grid-row:span 3">${txt}</div>${p[0]?tile(p[0],3,3):""}${p.slice(1).map(v=>tile(v,...sp)).join("")}</div></section>`}
 if(L==="coverflow")topoH=`<section class="sec cf-t"><div class="cf-head">${txt}</div></section><div class="cflow gal3d">${todas.map(v=>fig(v).replace('class="rv"','')).join("")}</div>`;
 if(L==="revista")topoH=`<section class="rev">${todas.map((v,i)=>`<figure><img src="${v.img}" alt="${esc(v.legenda||v.tipo)}"><div class="rv-t">${i===0?txt:esc(v.legenda||"")}</div></figure>`).join("")||`<figure><div class="rv-t">${txt}</div></figure>`}</section>`;
-const pm=(await getDocs(query(collection(db,"tenants",t.id,"promocoes"),where("emailCliente","==",""),where("destaqueHome","==",true)))).docs.map(d=>d.data()).filter(p=>p.ativo!==false&&(!p.validade||p.validade>=hoje()));
+const pm=on("promo")?(await getDocs(query(collection(db,"tenants",t.id,"promocoes"),where("emailCliente","==",""),where("destaqueHome","==",true)))).docs.map(d=>d.data()).filter(p=>p.ativo!==false&&(!p.validade||p.validade>=hoje())):[];
 const promoH=pm.length?`<section class="sec"><h2 class="rv">Promoções</h2><div class="promo-grid">${pm.map(p=>`<div class="promo rv"><b>${p.tipo==="percent"?p.valor+"%":brl(p.valor)} OFF</b><strong>${esc(p.titulo)}</strong><span>${esc(p.descricao||"")}</span>${p.codigo?`<code>Cupom ${esc(p.codigo)}</code>`:""}${p.validade?`<small>Até ${esc(p.validade.split("-").reverse().join("/"))}</small>`:""}</div>`).join("")}</div></section>`:"";
-const PL=t.planosAtivo?(await ler("planos")).filter(p=>p.ativo!==false):[];
+const PL=on("planos")&&t.planosAtivo?(await ler("planos")).filter(p=>p.ativo!==false):[];
 const planH=PL.length?`<section class="sec"><h2 class="rv">Planos e pacotes</h2><div class="promo-grid">${PL.map(p=>`<div class="card rv"><strong>${esc(p.nome)}</strong><p class="mute" style="margin:.3rem 0">${esc(p.descricao||"")}</p><b class="pp">${brl(p.preco)}</b><p class="mute">${p.sessoes} sessões · ${p.validade} dias</p><a class="btn" data-l="agendar.html">Contratar</a></div>`).join("")}</div></section>`:"";
-const eq=PR.filter(p=>p.ativo!==false),sv=SV.filter(v=>v.ativo!==false);
-$("#main").classList.add("solto");
-h.className="home";h.innerHTML=(tm.logo&&tm.logoPos==="marca"?`<img class="dagua" src="${tm.logo}" alt="">`:"")+topoH+
-promoH+planH+(tm.homeEquipe==="sim"&&eq.length?`<section class="sec"><h2 class="rv">${voc(t).eq}</h2><div class="equipe ${tm.equipeModelo==="coverflow"?"cflow":""}" data-m="${tm.equipeModelo||"grade"}" data-t="${tm.equipeTam||"m"}" data-e="${tm.equipeEfeito||"tilt"}" data-foto="${tm.equipeForma||"arco"}">${eq.map(p=>`<div class="eq"><span class="arch">${p.foto?`<img src="${p.foto}" alt="">`:`<i>${esc((p.nome||"?")[0])}</i>`}</span><strong>${esc(p.nome)}</strong></div>`).join("")}</div></section>`:"")+
-(sv.length?`<section class="sec"><h2 class="rv">${voc(t).sv}</h2><ul class="lista rv">${sv.map(v=>`<li><span>${esc(v.nome)}</span><strong>${brl(v.preco)}</strong></li>`).join("")}</ul></section>`:"")+
-(rv?`<section class="sec"><h2 class="rv">Quem já passou por aqui</h2>${rv}</section>`:"")+`<section class="sec fim rv"><h2>Pronto para o seu horário?</h2>${cta}</section>`;
+const eq=PR.filter(p=>p.ativo!==false),sv=SV.filter(v=>v.ativo!==false);$("#main").classList.add("solto");
+const pos=tm.textoPos||"bl";h.className="home";h.dataset.fx=tm.fxFoto||"zoom";h.dataset.filtro=tm.heroFiltro||"nenhum";h.dataset.anim=tm.heroAnim||"zoom";
+const hv=(k,v)=>h.style.setProperty(k,v);hv("--av",POSV[pos[0]]);hv("--ah",POSV[pos[1]]);hv("--ta",TA[pos[1]]);hv("--nt",(tm.nomeTam||100)/100);hv("--lhs",(tm.logoHomeTam||140)+"px");
+hv("--ha",{tela:"92dvh",alta:"76dvh",media:"54dvh"}[tm.heroAltura]||"92dvh");hv("--hc",{leve:"40px",forte:"120px"}[tm.heroCurva]||"0px");
+h.innerHTML=(tl&&lh==="dagua"?`<img class="dagua" src="${tm.logo}" alt="">`:"")+(tl&&lh==="canto"?img("canto"):"")+topoH+promoH+planH+
+(tm.homeEquipe==="sim"&&eq.length?`<section class="sec"><h2 class="rv">${voc(t).eq}</h2><div class="equipe ${tm.equipeModelo==="coverflow"?"cflow":""}" data-m="${tm.equipeModelo||"grade"}" data-t="${tm.equipeTam||"m"}" data-e="${tm.equipeEfeito||"tilt"}" data-foto="${tm.equipeForma||"arco"}">${eq.map(p=>`<div class="eq"><span class="arch">${p.foto?`<img src="${p.foto}" alt="">`:`<i>${esc((p.nome||"?")[0])}</i>`}</span><strong>${esc(p.nome)}</strong></div>`).join("")}</div></section>`:"")+
+(on("servicos")&&sv.length?`<section class="sec"><h2 class="rv">${voc(t).sv}</h2><ul class="lista rv">${sv.map(v=>`<li><span>${esc(v.nome)}</span><strong>${brl(v.preco)}</strong></li>`).join("")}</ul></section>`:"")+
+(rv?`<section class="sec"><h2 class="rv">Quem já passou por aqui</h2>${rv}</section>`:"")+(on("cta")?`<section class="sec fim rv"><h2>Pronto para o seu horário?</h2>${cta}</section>`:"");
 document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));revelar();document.querySelectorAll(".cflow").forEach(coverflow);inclinar(h);
-const im=$(".cine-img");if(im&&!matchMedia("(prefers-reduced-motion:reduce)").matches){let w=0;const f=()=>{if(!im.isConnected)return removeEventListener("scroll",f);if(w)return;w=requestAnimationFrame(()=>{w=0;im.style.setProperty("--py",Math.min(scrollY,900)*.18+"px")})};addEventListener("scroll",f,{passive:true})}};
+const im=$(".cine-img");if(im&&tm.heroAnim==="paralaxe"&&!matchMedia("(prefers-reduced-motion:reduce)").matches){let w=0;const f=()=>{if(!im.isConnected)return removeEventListener("scroll",f);if(w)return;w=requestAnimationFrame(()=>{w=0;im.style.setProperty("--py",Math.min(scrollY,900)*.18+"px")})};addEventListener("scroll",f,{passive:true})}};
 
 P.login=async(t,s)=>{if(s)return irParaPainel();const f=$("#f");
 f.onsubmit=e=>{e.preventDefault();acao($("button",f),async()=>{await signInWithEmailAndPassword(auth,f.email.value.trim(),f.senha.value);await irParaPainel()})};
@@ -119,28 +132,38 @@ acao($("button",f),async()=>{const v={};CAMPOS.forEach(k=>v[k]=f[k].value.trim()
 
 P.personalizacao=async(t,s)=>{if(!exigir(s,["master"]))return;const f=$("#f"),sel=$("#lojas"),q=await getDocs(collection(db,"tenants"));
 if(q.empty){$("#carga").remove();toast("Crie um estabelecimento primeiro, na tela Plataforma.","err");return}
-const L=new Map(q.docs.map(d=>[d.id,{id:d.id,...d.data()}]));sel.innerHTML=[...L.values()].map(x=>`<option value="${esc(x.id)}">${esc(x.nome)}</option>`).join("");let cur,logo="";
-const ler=()=>({cor:f.cor.value,tema:f.tema.value,estilo:f.estilo.value,fundo:f.fundo.value,fonte:f.fonte.value,borda:+f.borda.value,opac:+f.opac.value,prof:+f.prof.value,brilho:+f.brilho.value,logo,logoTam:+f.logoTam.value,logoPos:f.logoPos.value,logoForma:f.logoForma.value,layout:f.layout.value,segmento:f.segmento.value,fotoForma:f.fotoForma.value,fotoEfeito:f.fotoEfeito.value,dataModelo:f.dataModelo.value,horaModelo:f.horaModelo.value,fotoLayout:f.fotoLayout.value,heroOverlay:+f.heroOverlay.value,homeEquipe:f.homeEquipe.value,equipeModelo:f.equipeModelo.value,equipeForma:f.equipeForma.value,equipeTam:f.equipeTam.value,equipeEfeito:f.equipeEfeito.value});
-const enviar=()=>{const w=$("#vif")?.contentWindow;if(w)w.postMessage({tema:ler(),nome:f.nome.value},location.origin)},pv=enviar;
-addEventListener("message",function m(e){if(!$("#vif")){removeEventListener("message",m);return}if(e.origin===location.origin&&e.data?.pronto)enviar()});
-async function galeria(){const g=await getDocs(collection(db,"tenants",cur.id,"vitrine"));$("#gal").innerHTML=g.empty?`<p class="mute">Nenhuma foto na vitrine ainda.</p>`:g.docs.map(d=>`<figure class="mini"><img src="${d.data().img}" alt=""><figcaption>${esc(d.data().tipo)}</figcaption><button type="button" data-x="${d.id}" aria-label="Remover foto">×</button></figure>`).join("")}
-const D={cor:"#23395b",tema:"claro",estilo:"suave",fundo:"",fonte:"classica",borda:1,opac:100,prof:0,brilho:100,logoTam:36,logoPos:"lado",logoForma:"livre",layout:"cinema",segmento:"barbearia",fotoForma:"arco",fotoEfeito:"contorno",dataModelo:"faixa",horaModelo:"pilulas",fotoLayout:"grade",heroOverlay:40,homeEquipe:"nao",equipeModelo:"grade",equipeForma:"arco",equipeTam:"m",equipeEfeito:"tilt"};
+const L=new Map(q.docs.map(d=>[d.id,{id:d.id,...d.data()}]));sel.innerHTML=[...L.values()].map(x=>`<option value="${esc(x.id)}">${esc(x.nome)}</option>`).join("");let cur,logo="",rota="index";
+const D={cor:"#23395b",tema:"claro",estilo:"suave",fundo:"",fonte:"classica",borda:1,opac:100,prof:0,brilho:100,segmento:"barbearia",logoForma:"livre",logoCab:"lado",logoTam:36,nomeCab:"sim",logoHome:"nenhuma",logoHomeTam:140,layout:"cinema",heroAltura:"tela",heroCurva:"nenhuma",heroFiltro:"nenhum",heroOverlay:40,heroAnim:"zoom",fxFoto:"zoom",homeTitulo:"",homeSub:"",ctaTexto:"",ctaEstilo:"solido",nomeHome:"sim",subHome:"sim",nomeTam:100,tituloAnim:"nenhum",textoPos:"bl",homeEquipe:"nao",equipeModelo:"grade",equipeForma:"arco",equipeTam:"m",equipeEfeito:"tilt",fotoLayout:"grade",fotoForma:"arco",fotoEfeito:"contorno",dataModelo:"faixa",horaModelo:"pilulas"};
+const ler=()=>({...Object.fromEntries(Object.keys(D).map(k=>[k,f[k].type==="range"?+f[k].value:f[k].value])),logo,secoes:[...f.querySelectorAll("[name=sec]:checked")].map(x=>x.value)});
 const TELAS={cliente:[["index","Início"],["agendar","Agendar"]],loja:[["agendamentos","Agenda"],["unidades","Unidades"],["profissionais","Profissionais"],["servicos","Serviços"],["avaliacoes","Avaliações"],["indicadores","Indicadores"]]};
-const telas=()=>{$("#vtela").innerHTML=TELAS[$("#vmodo").value].map(([r,n])=>`<option value="${r}">${n}</option>`).join("")};
-const ir2=()=>{const i=$("#vif"),w=$("#vdisp").value;i.style.width=w==="100%"?"100%":w+"px";i.src=`${location.pathname}?s=${encodeURIComponent(cur.id)}&vis=${$("#vmodo").value}&_=${Date.now()}#/${$("#vtela").value}`;$("#vabrir").href=i.src.replace(/&_=\d+/,"")};
-const escolher=async()=>{cur=L.get(sel.value);const x={...D,...cur.tema};logo=x.logo||"";f.nome.value=cur.nome||"";f.descricao.value=cur.descricao||"";Object.keys(D).forEach(k=>f[k].value=x[k]);f.logo.value="";pv();await galeria();ir2()};
-$("#carga").remove();f.hidden=false;$("#prev").hidden=false;telas();$("#vmodo").onchange=()=>{telas();ir2()};$("#vtela").onchange=$("#vdisp").onchange=ir2;
-const cheia=on=>{$("#prev").classList.toggle("cheia",on);document.body.classList.toggle("cheia",on);$("#vsair").hidden=!on;$("#vcheia").hidden=on};
-$("#vcheia").onclick=()=>cheia(true);$("#vsair").onclick=()=>cheia(false);
+const telas=()=>{$("#vtela").innerHTML=TELAS[$("#vmodo").value].map(([r,n])=>`<option value="${r}">${n}</option>`).join("");$("#vtela").value=rota};
+const ajustar=()=>{const fr=$(".frame"),i=$("#vif");if(!fr||!i)return;const d=$("#vdisp").value,bw=d==="100%"?1280:+d,W=fr.clientWidth||bw,H=fr.clientHeight||700,k=Math.min(1,W/bw);
+i.style.width=bw+"px";i.style.height=H/k+"px";i.style.transform=`scale(${k})`;i.style.transformOrigin="top left";i.style.left=Math.max(0,(W-bw*k)/2)+"px"};
+const carregar=()=>{const i=$("#vif");i.src=`${location.pathname}?s=${encodeURIComponent(cur.id)}&vis=${$("#vmodo").value}&_=${Date.now()}#/${rota}`;$("#vabrir").href=i.src.replace(/&_=\d+/,"");ajustar()};
+const msg=m=>$("#vif")?.contentWindow?.postMessage(m,location.origin);
+const enviar=()=>msg({tema:ler(),nome:f.nome.value}),pv=()=>{const tm=ler();aplicarTema(tm);enviar()};
+const ABA={agendamento:"agendar"};
+const aba=n=>{f.querySelectorAll("[data-aba]").forEach(x=>x.hidden=x.dataset.aba!==n);$("#abas").querySelectorAll("button").forEach(b=>b.setAttribute("aria-selected",b.dataset.aba===n));
+const r=ABA[n]||"index";if($("#vmodo").value==="cliente"&&r!==rota){rota=r;$("#vtela").value=r;msg({rota:r})}};
+addEventListener("message",function m(e){if(!$("#vif")){removeEventListener("message",m);return}if(e.origin!==location.origin)return;if(e.data?.rota){rota=e.data.rota;if([...$("#vtela").options].some(o=>o.value===rota))$("#vtela").value=rota}if(e.data?.pronto)enviar()});
+async function galeria(){const g=await getDocs(collection(db,"tenants",cur.id,"vitrine"));$("#gal").innerHTML=g.empty?`<p class="mute">Nenhuma foto na vitrine ainda.</p>`:g.docs.map(d=>`<figure class="mini"><img src="${d.data().img}" alt=""><figcaption>${esc(d.data().tipo)}</figcaption><button type="button" data-x="${d.id}" aria-label="Remover foto">×</button></figure>`).join("")}
+const legadoLogo=x=>{if(x.logoCab||x.logoHome)return x;return{...x,...legado(x)}};
+const escolher=async()=>{cur=L.get(sel.value);let x={...D,...legadoLogo(cur.tema||{})};if(x.layout==="editorial")x.layout="divisao";logo=x.logo||"";f.nome.value=cur.nome||"";f.descricao.value=cur.descricao||"";
+Object.keys(D).forEach(k=>f[k].value=x[k]);f.logo.value="";const sec=x.secoes||ALLSEC;f.querySelectorAll("[name=sec]").forEach(c=>c.checked=sec.includes(c.value));pv();await galeria();carregar()};
+$("#abas").onclick=e=>{const b=e.target.closest("button");if(b)aba(b.dataset.aba)};
+$("#vmodo").onchange=()=>{rota=TELAS[$("#vmodo").value][0][0];telas();carregar()};$("#vtela").onchange=()=>{rota=$("#vtela").value;msg({rota})};$("#vdisp").onchange=ajustar;
+const cheia=on=>{$("#prev").classList.toggle("cheia",on);document.body.classList.toggle("cheia",on);$("#vsair").hidden=!on;$("#vcheia").hidden=on;setTimeout(ajustar,60)};
+$("#vcheia").onclick=()=>cheia(true);$("#vsair").onclick=()=>cheia(false);addEventListener("resize",ajustar);if(typeof ResizeObserver!=="undefined")new ResizeObserver(ajustar).observe($(".frame"));
 document.addEventListener("keydown",function k(e){if(!$("#prev")){document.removeEventListener("keydown",k);document.body.classList.remove("cheia");return}if(e.key==="Escape")cheia(false)});
-await escolher();sel.onchange=escolher;
+$("#carga").remove();$("#painel").hidden=false;$("#prev").hidden=false;telas();aba("marca");
 f.logo.onchange=async()=>{if(f.logo.files[0]){logo=await imgData(f.logo.files[0],320,true);pv();toast("Logo carregada. Salve para publicar.")}};
-f.oninput=e=>{if(!["logo","fotos","tipo","legenda"].includes(e.target.name))pv()};$("#descartar").onclick=escolher;
-$("#gal").onclick=e=>{const b=e.target.closest("[data-x]");if(b)acao(b,async()=>{await deleteDoc(doc(db,"tenants",cur.id,"vitrine",b.dataset.x));await galeria()})};
+f.oninput=e=>{if(!["logo","fotos","tipo","legenda"].includes(e.target.name))pv()};f.onchange=e=>{if(e.target.name==="sec")pv()};$("#descartar").onclick=escolher;sel.onchange=escolher;
+$("#gal").onclick=e=>{const b=e.target.closest("[data-x]");if(b)acao(b,async()=>{await deleteDoc(doc(db,"tenants",cur.id,"vitrine",b.dataset.x));await galeria();enviar()})};
 $("#addfoto").onclick=e=>acao(e.currentTarget,async()=>{const fs=[...f.fotos.files];if(!fs.length)return toast("Escolha ao menos uma foto.","err");
-for(const x of fs)await addDoc(collection(db,"tenants",cur.id,"vitrine"),{img:await imgData(x,1000),legenda:f.legenda.value.trim(),tipo:f.tipo.value,ordem:Date.now()});f.fotos.value="";toast(`${fs.length} foto(s) adicionada(s).`);await galeria()});
+for(const x of fs)await addDoc(collection(db,"tenants",cur.id,"vitrine"),{img:await imgData(x,1000),legenda:f.legenda.value.trim(),tipo:f.tipo.value,ordem:Date.now()});f.fotos.value="";toast(`${fs.length} foto(s) adicionada(s).`);await galeria();enviar()});
 f.onsubmit=e=>{e.preventDefault();if(!f.nome.value.trim())return toast("Informe o nome do estabelecimento.","err");
-acao($("button[type=submit]",f),async()=>{const novo={nome:f.nome.value.trim(),descricao:f.descricao.value.trim(),tema:ler()};await updateDoc(doc(db,"tenants",cur.id),novo);await auditar("tenant.aparencia",{id:cur.id});Object.assign(cur,novo);pwa(cur);TC.clear();toast("Aparência salva.");ir2()})}};
+acao($("button[type=submit]",f),async()=>{const novo={nome:f.nome.value.trim(),descricao:f.descricao.value.trim(),tema:ler()};await updateDoc(doc(db,"tenants",cur.id),novo);await auditar("tenant.aparencia",{id:cur.id});Object.assign(cur,novo);pwa(cur);TC.clear();toast("Aparência salva.")})};
+await escolher()};
 
 P.master=async(t,s)=>{if(!exigir(s,["master"]))return;const L=$("#lista"),sel=$("#sel");
 async function listar(){const q=await getDocs(collection(db,"tenants"));$("#carga")?.remove();
@@ -482,13 +505,13 @@ toast(await concluir(id,forma,ass)?"Concluído. O cliente ganhou um brinde!":"At
 let exec=0;
 const lim=(p,ms=10000)=>Promise.race([p,new Promise((_,no)=>setTimeout(()=>no({message_pt:"O servidor demorou a responder. Verifique a internet e a configuração do Firebase."}),ms))]);
 const aviso=(h,m)=>{if($("#boot"))$("#main").innerHTML=`<section class="hero"><h1>${h}</h1><p class="lead">${m}</p></section>`};
-async function rotear(manter){if(!CONFIG_OK)return aviso("Falta configurar o Firebase","Abra app.js e cole a configuração do seu projeto Firebase na constante FIREBASE, no topo do arquivo.");const id=++exec,r=location.hash.replace(/^#\/?/,"")||"index",pg=P[r]?r:"index";
+async function rotear(manter){const sy=scrollY;if(!CONFIG_OK)return aviso("Falta configurar o Firebase","Abra app.js e cole a configuração do seu projeto Firebase na constante FIREBASE, no topo do arquivo.");const id=++exec,r=location.hash.replace(/^#\/?/,"")||"index",pg=P[r]?r:"index";
 try{const s=await lim(sessao()),t=await lim(carregarTenant(s?.papel==="master"&&!s.previa&&!["index","agendar"].includes(pg)?false:s?.tenantId||null));if(id!==exec)return;TT=t;if(!t)aplicarTema();
 await (manter?(f=>f()):vt)(()=>{$("#main").classList.remove("solto");$("#main").replaceChildren(document.getElementById("t-"+pg).content.cloneNode(true));document.body.dataset.page=pg;topo(t,s)});
-const ln=()=>document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));ln();await P[pg](t,s);ln();if(!manter){scrollTo(0,0);$("#main").focus({preventScroll:true})}if(!PING&&parent!==window&&new URLSearchParams(location.search).get("vis")){PING=1;parent.postMessage({pronto:1},location.origin)}}
+const ln=()=>document.querySelectorAll("[data-l]").forEach(a=>a.href=href(a.dataset.l));ln();await P[pg](t,s);ln();if(!manter){scrollTo(0,0);$("#main").focus({preventScroll:true})}else scrollTo(0,sy);if(parent!==window&&new URLSearchParams(location.search).get("vis")){parent.postMessage({rota:pg,pronto:!PING},location.origin);PING=1}}
 catch(e){console.error(e);aviso("Não foi possível carregar",esc(msgErro(e)));toast(msgErro(e),"err")}}
 addEventListener("hashchange",()=>rotear());
-let deb;addEventListener("message",e=>{if(e.origin!==location.origin||!e.data?.tema||!TT||!new URLSearchParams(location.search).get("vis"))return;OVR={id:TT.id,nome:e.data.nome,tema:e.data.tema};clearTimeout(deb);deb=setTimeout(()=>rotear(true),250)});
+let deb;addEventListener("message",e=>{if(e.origin!==location.origin||!new URLSearchParams(location.search).get("vis"))return;if(e.data?.rota){location.hash="#/"+e.data.rota;return}if(!e.data?.tema||!TT)return;OVR={id:TT.id,nome:e.data.nome,tema:e.data.tema};clearTimeout(deb);deb=setTimeout(()=>rotear(true),250)});
 {const rf=new URLSearchParams(location.search).get("ref");if(rf)localStorage.setItem("ref",rf)}
 {const sk=document.createElement("button");sk.className="skip";sk.textContent="Pular para o conteúdo";sk.onclick=()=>$("#main").focus();document.body.prepend(sk)}
 rotear();
